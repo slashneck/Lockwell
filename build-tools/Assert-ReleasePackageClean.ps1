@@ -1,4 +1,4 @@
-# Fail the release publish if user vault data or dev artifacts appear in the output tree.
+﻿# Fail the release publish if user vault data or dev artifacts appear in the output tree.
 param(
     [Parameter(Mandatory = $true)]
     [string] $RootPath
@@ -70,38 +70,26 @@ $needles = @($env:USERNAME, $env:COMPUTERNAME, $env:USERDOMAIN) |
 if (-not $needles) {
     Write-Host "Skipped identity scan: no usable machine identifiers in the environment."
 } else {
-    $patterns = @()
+    # Latin1 maps every byte to the code point of the same value and back, so a byte
+    # array round-trips through a string without loss. That lets the search itself run
+    # as a native IndexOf over the whole file instead of a PowerShell loop over
+    # individual bytes, which on a folder of self-contained runtime DLLs is the
+    # difference between seconds and not finishing.
+    $latin1 = [System.Text.Encoding]::GetEncoding(28591)
+
+    $asciiNeedles = @{}
+    $utf16Needles = @{}
     foreach ($needle in $needles) {
-        $ascii = [System.Text.Encoding]::ASCII.GetBytes($needle.ToLowerInvariant())
-        $utf16 = [System.Text.Encoding]::Unicode.GetBytes($needle.ToLowerInvariant())
-        $patterns += , @{ Name = $needle; Bytes = $ascii }
-        $patterns += , @{ Name = $needle; Bytes = $utf16 }
-    }
-
-    function Test-BytesContain {
-        param([byte[]] $Haystack, [byte[]] $Needle)
-
-        $limit = $Haystack.Length - $Needle.Length
-        if ($limit -lt 0) { return $false }
-
-        for ($i = 0; $i -le $limit; $i++) {
-            $match = $true
-            for ($j = 0; $j -lt $Needle.Length; $j++) {
-                $b = $Haystack[$i + $j]
-                # Fold ASCII upper-case to lower so a path is caught whatever case it
-                # was written in. UTF-16 bytes fold the same way; the interleaved zero
-                # bytes are unaffected.
-                if ($b -ge 65 -and $b -le 90) { $b = $b + 32 }
-                if ($b -ne $Needle[$j]) { $match = $false; break }
-            }
-            if ($match) { return $true }
-        }
-        return $false
+        $lower = $needle.ToLowerInvariant()
+        $asciiNeedles[$needle] = $lower
+        # UTF-16LE is how .NET metadata stores strings: each character followed by a
+        # zero byte, which a plain text search would never match.
+        $utf16Needles[$needle] = $latin1.GetString([System.Text.Encoding]::Unicode.GetBytes($lower))
     }
 
     $leaks = @()
     foreach ($file in Get-ChildItem -LiteralPath $RootPath -Recurse -File -ErrorAction SilentlyContinue) {
-        $relative = $file.FullName.Substring($RootPath.Length).TrimStart('\')
+        $relative = $file.FullName.Substring($RootPath.Length).TrimStart([char]92)
 
         foreach ($needle in $needles) {
             if ($relative -like "*$needle*") {
@@ -109,16 +97,17 @@ if (-not $needles) {
             }
         }
 
-        # The .NET runtime files are large, numerous, and not ours. Scanning them adds
-        # minutes and finds nothing, because nothing on this machine built them.
+        # The .NET runtime files are numerous and not ours: nothing on this machine
+        # built them, so nothing from this machine can be inside them.
         if ($file.Extension -notin @(".exe", ".dll", ".json", ".xml", ".txt", ".md", ".config", ".pdb")) { continue }
         if ($file.Name -like "System.*" -or $file.Name -like "Microsoft.*" -or $file.Name -like "WindowsBase*") { continue }
         if ($file.Length -gt 80MB) { continue }
 
-        $bytes = [System.IO.File]::ReadAllBytes($file.FullName)
-        foreach ($pattern in $patterns) {
-            if (Test-BytesContain -Haystack $bytes -Needle $pattern.Bytes) {
-                $leaks += "$relative (contains: $($pattern.Name))"
+        $text = $latin1.GetString([System.IO.File]::ReadAllBytes($file.FullName)).ToLowerInvariant()
+
+        foreach ($needle in $needles) {
+            if ($text.Contains($asciiNeedles[$needle]) -or $text.Contains($utf16Needles[$needle])) {
+                $leaks += "$relative (contains: $needle)"
                 break
             }
         }

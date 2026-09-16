@@ -1,18 +1,21 @@
-# Publish Lockwell Setup: raw copy (keep locally) + obfuscated copy (share).
+﻿# Publish LockwellSetup.exe, the standalone installer attached to a GitHub release.
+#
+# Not obfuscated. The installer is the component that decides whether a downloaded
+# release is genuine before writing it into Program Files, so of everything Lockwell
+# ships it is the piece most worth being able to read. Obfuscating it hid that decision
+# from the people relying on it and protected nothing: the check it performs is a
+# signature verification against a public key, and knowing exactly how it works is what
+# makes it trustworthy rather than what breaks it.
 param(
     [string] $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path,
-    [string] $RawOutputPath = "",
-    [string] $ObfuscatedOutputPath = (Join-Path $env:TEMP "LockwellSetup.exe")
+    [string] $OutputPath = (Join-Path $env:TEMP "LockwellSetup.exe"),
+    [switch] $Obfuscate
 )
 
 $ErrorActionPreference = "Stop"
 $proj = Join-Path $RepoRoot "Lockwell.Installer\Lockwell.Installer.csproj"
 $projectDir = Join-Path $RepoRoot "Lockwell.Installer"
 $obfuscateScript = Join-Path $PSScriptRoot "Invoke-OutputObfuscation.ps1"
-
-if (-not $RawOutputPath) {
-    $RawOutputPath = Join-Path $RepoRoot "dist\LockwellSetup-raw.exe"
-}
 
 function Publish-InstallerExe {
     param(
@@ -79,35 +82,22 @@ function Copy-InstallerOutput {
     Copy-Item $SourceExe $DestPath -Force
 }
 
-$rawStaging = Join-Path $RepoRoot "dist\installer-staging-raw"
-$obfStaging = Join-Path $RepoRoot "dist\installer-staging-obf"
+$staging = Join-Path $RepoRoot "dist\installer-staging"
 
-Write-Host "Publishing raw installer (keep locally)..."
-$rawExe = Publish-InstallerExe -Staging $rawStaging -Obfuscate:$false
-Copy-InstallerOutput -SourceExe ([string]$rawExe) -DestPath $RawOutputPath
-$rawMb = [math]::Round((Get-Item $RawOutputPath).Length / 1MB, 1)
-Write-Host "  Raw: $RawOutputPath ($rawMb MB)"
+Write-Host "Publishing installer..."
+$built = Publish-InstallerExe -Staging $staging -Obfuscate:$Obfuscate.IsPresent
+Copy-InstallerOutput -SourceExe ([string]$built) -DestPath $OutputPath
+Remove-Item $staging -Recurse -Force -ErrorAction SilentlyContinue
 
-Write-Host ""
-Write-Host "Publishing obfuscated installer (share)..."
-& dotnet clean $proj -c Release --verbosity minimal | Out-Null
-$obfExe = Publish-InstallerExe -Staging $obfStaging -Obfuscate:$true
-Copy-InstallerOutput -SourceExe ([string]$obfExe) -DestPath $ObfuscatedOutputPath
-$obfMb = [math]::Round((Get-Item $ObfuscatedOutputPath).Length / 1MB, 1)
-Write-Host "  Obfuscated: $ObfuscatedOutputPath ($obfMb MB)"
-
-$rawHash = (Get-FileHash $RawOutputPath).Hash
-$obfHash = (Get-FileHash $ObfuscatedOutputPath).Hash
-if ($rawHash -eq $obfHash) {
-    throw "Obfuscated installer is byte-identical to raw. Obfuscation did not reach the shipped LockwellSetup.exe."
-}
-Write-Host "Verified: obfuscated installer differs from raw build."
-
-Remove-Item $rawStaging -Recurse -Force -ErrorAction SilentlyContinue
-Remove-Item $obfStaging -Recurse -Force -ErrorAction SilentlyContinue
+$exe = Get-Item $OutputPath
+$sizeMb = [math]::Round($exe.Length / 1MB, 1)
+$sha = (Get-FileHash $OutputPath -Algorithm SHA256).Hash.ToLowerInvariant()
 
 Write-Host ""
 Write-Host "Done."
-Write-Host "  Keep (raw):         $RawOutputPath"
-Write-Host "  Share (obfuscated): $ObfuscatedOutputPath"
-Write-Host "Recipients only need the obfuscated exe. It downloads Lockwell-win-x64.zip from GitHub releases."
+Write-Host "  Installer: $OutputPath ($sizeMb MB)"
+Write-Host "  SHA-256:   $sha"
+Write-Host ""
+Write-Host "Attach it to the release as LockwellSetup.exe. It downloads"
+Write-Host "Lockwell-win-x64.zip from the same release and verifies the signature"
+Write-Host "before writing anything."

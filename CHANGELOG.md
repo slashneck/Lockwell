@@ -70,15 +70,23 @@ All notable changes to Lockwell. Newest first.
 
 ### Security & privacy
 
-- **A large part of the app was shipping unobfuscated, and it was the wrong part.**
-  `Lockwell.Core` holds every line of the cryptography, the vault format and the whole
-  pairing and transfer stack, and it was never listed in the obfuscation config, so
-  release builds shipped it untouched. It is obfuscated now, in the same pass as the rest
-  of the app so cross-references stay consistent. Two checks were added to the release
-  build: one that fails if the core's string constants are readable, and one that creates,
-  encrypts and reopens a vault through the obfuscated code before the build is allowed to
-  pass, because an unreadable build that cannot open your vault would be far worse than a
-  readable one.
+- **Released builds are no longer obfuscated.** They used to be, because the source was
+  private and a binary that was hard to pick apart was part of the story. With the source
+  published that reasoning does not survive: obfuscation now hides an algorithm anyone can
+  read in the repository, while making it impossible to check that the file on the
+  releases page came from the code on the repository page. For a vault app, being
+  checkable is worth more.
+
+  This changes nothing about how your vault is protected. That rests on Argon2id and
+  AES-256-GCM keyed from your master password, not on anyone being unable to read the
+  program. There is no secret hidden in the binary. The only key compiled into Lockwell is
+  the public half of the release signing key, which is public on purpose.
+
+- **Every build now has to open a vault before it can ship.** The release build creates a
+  vault, encrypts into it and reads it back through the exact executable being published.
+  It was written to catch obfuscation breaking the vault format, and it stays now that
+  obfuscation is gone, because the thing worth proving was never about obfuscation. It is
+  that the build being shipped can open your data.
 
 - **Release packages are checked for anything identifying the machine that built them.**
   Not just files that should not be there, but the contents of the shipped binaries, in

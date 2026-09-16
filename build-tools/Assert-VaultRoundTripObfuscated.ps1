@@ -1,9 +1,11 @@
-# Prove an obfuscated build can still create, encrypt, and read a vault.
+﻿# Prove the build about to be published can create, encrypt, and read a vault.
 #
-# This is the correctness half of obfuscating Core. Renaming methods and hiding strings in
-# the crypto and vault code is worthless if it also breaks opening a vault, and a broken
-# vault is the one failure this project cannot ship -- a user's data would be unreadable
-# by the very build meant to protect it.
+# Written to guard obfuscation of Lockwell.Core: renaming methods and hiding strings in
+# the crypto and vault code is worthless if it also breaks opening a vault. Public
+# releases are no longer obfuscated, but this check stayed and now runs on every build,
+# because what it actually proves was never about obfuscation. A vault the shipped
+# executable cannot open is the one failure this project can never ship, whatever caused
+# it: the user's data would be unreadable by the very build meant to protect it.
 #
 # --store-shots drives the real application against a throwaway demo vault: it derives a
 # key with Argon2, encrypts and decrypts media through AES-GCM, serialises the vault, and
@@ -46,7 +48,7 @@ obfuscated Core -- obfuscation has broken the vault path. Do not ship this build
 "@
     }
 
-    Write-Host "Verified: obfuscated build created and read a vault ($($pngs.Count) screens rendered)."
+    Write-Host "Verified: the published build created and read a vault ($($pngs.Count) screens rendered)."
 }
 finally {
     if (Test-Path $shotDir) {

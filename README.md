@@ -101,6 +101,10 @@ That harness is not a formality. It covers the vault round trip, the key derivat
 the wire protocol, the update trust chain, and a set of guards for bugs that got into
 the app once already and are not allowed back in.
 
+Released binaries are not obfuscated, so what you build is what is published. Builds
+are not bit-for-bit reproducible, so this is not a hash you can compare, but there is
+nothing in the shipped files deliberately made unreadable.
+
 ## Security
 
 Lockwell is built to be as unreadable at rest as a local app can be, and honest about
@@ -122,7 +126,7 @@ Found a vulnerability? See [SECURITY.md](SECURITY.md).
 | `Lockwell.Installer/` | The setup and update program |
 | `Lockwell.Tests/` | The verification harness |
 | `Lockwell.Mobile/` | Android companion app (.NET MAUI, early) |
-| `build-tools/` | Publish, obfuscation and release-signing tooling |
+| `build-tools/` | Publish, packaging and release-signing tooling |
 | `docs/` | Threat models, vault format, sync protocol |
 
 ## Android companion

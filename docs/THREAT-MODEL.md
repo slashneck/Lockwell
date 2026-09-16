@@ -131,10 +131,17 @@ Argon2 parameters, the fact that the master password never becomes a `string`, t
 single network call, the absence of any backdoor. You do not have to take a security
 promise on faith when you can read the code that makes it.
 
-Honest limit: reading the source tells you what the source does, not what the
-downloaded binary does. Release builds are obfuscated, which means the shipped files
-do not correspond line for line with anything you can diff. If you want a binary you
-can fully account for, build it yourself from this repository.
+Release builds are not obfuscated, so the shipped binaries are what this repository
+builds. Lockwell used to obfuscate them, back when the source was private and making
+the binary hard to read was part of the story. It protected nothing once the source
+was published, and it made the one useful thing about open source impossible: checking
+that the program you downloaded came from the code you read.
+
+Honest limit: reading the source still tells you what the source does, not what the
+file you downloaded does. Nothing here proves the two match. Builds are not
+bit-for-bit reproducible, so a careful comparison means building it yourself and
+comparing behaviour, not hashes. If that matters to you, build it yourself and run
+that.
 
 ## About "secure" deletion
 

@@ -3,14 +3,26 @@
 param(
     [Parameter(Mandatory = $true)]
     [string] $OutputPath,
+    # Public releases are NOT obfuscated, and this switch is off by default.
+    #
+    # Lockwell used to ship obfuscated because the source was private, so making the
+    # binary hard to read was part of the story. With the source published under the GPL
+    # that reasoning is gone: obfuscation now hides an algorithm anyone can read in the
+    # repository, and it costs something real. A published build that nobody can
+    # reproduce from the published source cannot be checked against it, and for a vault
+    # app being checkable is the point.
+    #
+    # It changes nothing about vault security either way. The vault is protected by
+    # Argon2id and AES-256-GCM keyed from the user's master password. There is no secret
+    # compiled into the binary for obfuscation to protect: the only key in the source is
+    # the release signing PUBLIC key, which is public by design.
+    #
+    # The switch stays because the tooling still works and someone building privately may
+    # want it.
     [switch] $Obfuscate,
     [ValidateSet("Standard", "Max")]
     # Standard, not Max. Max renames the public API, which breaks the WPF shell's BAML at
-    # startup (Baml2006SchemaContext.ResolveBamlType throws). Standard keeps the public
-    # surface -- so the app boots -- while still hiding every string constant and renaming
-    # private and internal members across both Lockwell.dll and Lockwell.Core.dll. The
-    # Assert-ObfuscatedExe check only runs under Max, so the Core and vault-round-trip
-    # asserts below are what guard a Standard release.
+    # startup (Baml2006SchemaContext.ResolveBamlType throws).
     [string] $ObfuscationProfile = "Standard"
 )
 
@@ -53,6 +65,14 @@ function Publish-FolderSelfContained {
 }
 
 try {
+    # Restore for the runtime identifier we are about to clean and publish for. Without
+    # this, a working tree whose last restore was a plain Debug build fails at the very
+    # first step with NETSDK1047: "clean" reads the assets file too, and the assets file
+    # has no win-x64 target in it yet.
+    Write-Host "dotnet restore (win-x64)..."
+    & dotnet restore $proj -r win-x64 --verbosity minimal 2>&1 | Out-Host
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
     Write-Host "dotnet clean (full rebuild before publish)..."
     & dotnet clean $proj -c Release -r win-x64 --verbosity minimal 2>&1 | Out-Host
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -90,16 +110,19 @@ try {
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
         }
 
-        # Core carries the crypto and the vault format. Prove it is obfuscated...
+        # Core carries the crypto and the vault format. Prove it is obfuscated.
         $assertCoreObfuscated = Join-Path $PSScriptRoot "Assert-CoreObfuscated.ps1"
         & $assertCoreObfuscated -CoreDllPath (Join-Path $folderStaging "Lockwell.Core.dll")
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
-        # ...and, just as important, that obfuscating it did not break opening a vault.
-        $assertVaultRoundTrip = Join-Path $PSScriptRoot "Assert-VaultRoundTripObfuscated.ps1"
-        & $assertVaultRoundTrip -ExePath $publishedExe
-        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     }
+
+    # This one runs for every build, obfuscated or not. It creates a vault, encrypts into
+    # it, and reads it back through the exe that is about to be shipped. It was written to
+    # catch obfuscation breaking the vault format, but the thing it actually guards is
+    # "the build that ships can open a vault", and that has to be true of every build.
+    $assertVaultRoundTrip = Join-Path $PSScriptRoot "Assert-VaultRoundTripObfuscated.ps1"
+    & $assertVaultRoundTrip -ExePath $publishedExe
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
     & $assertSettingsBootstrap -ExePath $publishedExe
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

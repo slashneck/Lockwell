@@ -1,17 +1,24 @@
-# GitHub release package for slashneck/Lockwell
+# Builds the Lockwell package that gets attached to a GitHub release.
 #
-# Produces TWO outputs (source code is never touched):
-#   RAW (keep locally):  dist\Lockwell-v{version}-raw\  +  dist\Lockwell-win-x64-raw.zip
-#   SHIP (GitHub):       Documents\Lockwell-win-x64.zip  (Standard obfuscation, self-contained folder)
+# One artifact, not two. Earlier versions of this script produced a raw build to keep
+# locally and an obfuscated one to publish, and compared them to prove obfuscation had
+# actually reached the shipped DLL. Public releases are no longer obfuscated, so there is
+# nothing to compare: what is published is what this repository builds.
+#
+# That is deliberate. Obfuscation protected nothing once the source was published, and it
+# made the one thing open source is good for impossible, which is checking that the
+# binary on the releases page came from the code on the repository page. Vault security
+# is unaffected either way: it rests on Argon2id and AES-256-GCM keyed from the user's
+# master password, and there is no secret in the binary for obfuscation to hide.
 #
 # Usage:
 #   powershell -File build-tools\package-github-release.ps1
 param(
     [string] $Version = "",
     [string] $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path,
-    [string] $RawFolder = "",
-    [string] $RawZipPath = "",
-    [string] $GitHubZipPath = (Join-Path $env:TEMP "Lockwell-win-x64.zip")
+    [string] $OutputZipPath = (Join-Path $env:TEMP "Lockwell-win-x64.zip"),
+    # Off for public releases. See publish-release.ps1 for why.
+    [switch] $Obfuscate
 )
 
 $ErrorActionPreference = "Stop"
@@ -26,73 +33,41 @@ if (-not $Version) {
 $distDir = Join-Path $RepoRoot "dist"
 if (-not (Test-Path $distDir)) { New-Item -ItemType Directory -Path $distDir | Out-Null }
 
-if (-not $RawFolder) {
-    $RawFolder = Join-Path $distDir "Lockwell-v$Version-raw"
-}
-if (-not $RawZipPath) {
-    $RawZipPath = Join-Path $distDir "Lockwell-win-x64-raw.zip"
-}
-
+$staging = Join-Path $distDir "github-release-staging"
 $publishScript = Join-Path $PSScriptRoot "publish-release.ps1"
-$obfStaging = Join-Path $distDir "github-release-staging"
 
-Write-Host "=== Step 1/3: Raw consumer build (local only, no obfuscation) ==="
-& $publishScript -OutputPath $RawFolder -Obfuscate:$false
-if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+Write-Host "=== Building Lockwell $Version ==="
+if (Test-Path $staging) { Remove-Item $staging -Recurse -Force }
 
-if (Test-Path $RawZipPath) { Remove-Item $RawZipPath -Force }
-Write-Host "Zipping raw folder -> $RawZipPath"
-Compress-Archive -LiteralPath $RawFolder -DestinationPath $RawZipPath -CompressionLevel Optimal -Force
-$rawMb = [math]::Round((Get-Item $RawZipPath).Length / 1MB, 1)
-Write-Host "  Raw zip: $RawZipPath ($rawMb MB)"
-
-Write-Host ""
-Write-Host "=== Step 2/3: Standard obfuscation build for GitHub (WPF-safe) ==="
-if (Test-Path $obfStaging) { Remove-Item $obfStaging -Recurse -Force }
-& $publishScript -OutputPath $obfStaging -Obfuscate -ObfuscationProfile Standard
+& $publishScript -OutputPath $staging -Obfuscate:$Obfuscate
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 Write-Host ""
-Write-Host "=== Step 3/3: GitHub zip -> Documents ==="
-if (Test-Path $GitHubZipPath) { Remove-Item $GitHubZipPath -Force }
-$shipItems = Get-ChildItem -LiteralPath $obfStaging -Force
-if (-not $shipItems) { throw "Obfuscated staging folder is empty: $obfStaging" }
-Compress-Archive -Path ($shipItems | ForEach-Object { $_.FullName }) -DestinationPath $GitHubZipPath -CompressionLevel Optimal -Force
-Remove-Item $obfStaging -Recurse -Force
+Write-Host "=== Packaging ==="
+if (Test-Path $OutputZipPath) { Remove-Item $OutputZipPath -Force }
 
-$rawExe = Join-Path $RawFolder "Lockwell.exe"
-if ((Test-Path $rawExe) -and (Test-Path $GitHubZipPath)) {
-    Add-Type -AssemblyName System.IO.Compression.FileSystem
-    $rawDll = Join-Path $RawFolder "Lockwell.dll"
-    $tmpShip = Join-Path $env:TEMP ("lw-ship-" + [Guid]::NewGuid().ToString("n") + ".dll")
-    $zip = [IO.Compression.ZipFile]::OpenRead($GitHubZipPath)
-    $entry = $zip.Entries | Where-Object { $_.Name -eq "Lockwell.dll" } | Select-Object -First 1
-    if (-not $entry) {
-        $zip.Dispose()
-        throw "Ship zip does not contain Lockwell.dll."
-    }
-    [IO.Compression.ZipFileExtensions]::ExtractToFile($entry, $tmpShip, $true)
-    $zip.Dispose()
-    if (-not (Test-Path $rawDll)) {
-        throw "Raw folder missing Lockwell.dll: $rawDll"
-    }
-    $rawHash = (Get-FileHash $rawDll).Hash
-    $shipHash = (Get-FileHash $tmpShip).Hash
-    Remove-Item $tmpShip -Force -ErrorAction SilentlyContinue
-    if ($rawHash -eq $shipHash) {
-        throw "Shipped Lockwell.dll is byte-identical to raw. Obfuscation did not reach the GitHub zip."
-    }
-    Write-Host "Verified: shipped Lockwell.dll differs from raw build."
-}
+$shipItems = Get-ChildItem -LiteralPath $staging -Force
+if (-not $shipItems) { throw "Staging folder is empty: $staging" }
 
-$shipMb = [math]::Round((Get-Item $GitHubZipPath).Length / 1MB, 1)
+# The exe sits at the root of the zip. Orbit extracts the archive as-is and expects to
+# find it there or one folder down, never deeper.
+Compress-Archive -Path ($shipItems | ForEach-Object { $_.FullName }) `
+    -DestinationPath $OutputZipPath -CompressionLevel Optimal -Force
+Remove-Item $staging -Recurse -Force
+
+$zip = Get-Item $OutputZipPath
+$sizeMb = [math]::Round($zip.Length / 1MB, 1)
+$sha = (Get-FileHash $OutputZipPath -Algorithm SHA256).Hash.ToLowerInvariant()
 
 Write-Host ""
 Write-Host "Done."
-Write-Host "  KEEP (raw folder):     $RawFolder"
-Write-Host "  KEEP (raw zip):        $RawZipPath"
-Write-Host "  UPLOAD TO GITHUB:      $GitHubZipPath ($shipMb MB)"
+Write-Host "  Package:  $OutputZipPath"
+Write-Host "  Size:     $($zip.Length) bytes ($sizeMb MB)"
+Write-Host "  SHA-256:  $sha"
 Write-Host ""
-Write-Host "GitHub asset name must be: Lockwell-win-x64.zip"
+Write-Host "The GitHub asset name must be Lockwell-win-x64.zip, because that is the name"
+Write-Host "the signed release manifest refers to."
 Write-Host ""
-Write-Host "  gh release create v$Version `"Lockwell v$Version`" `"$GitHubZipPath`" --repo slashneck/Lockwell"
+Write-Host "Next: sign it, then publish."
+Write-Host "  ReleaseKit sign --private <offline key> --package `"$OutputZipPath`" --version $Version --out <dir>"
+Write-Host "  gh release create v$Version --repo slashneck/Lockwell <package> <release.json> <release.json.sig>"
