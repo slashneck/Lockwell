@@ -1,0 +1,52 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <RootNamespace>Lockwell.Installer</RootNamespace>
+    <AssemblyName>LockwellSetup</AssemblyName>
+    <ApplicationIcon>..\Lockwell\Assets\lockwell.ico</ApplicationIcon>
+    <Version>1.2.0</Version>
+    <AssemblyVersion>1.2.0.0</AssemblyVersion>
+    <FileVersion>1.2.0.0</FileVersion>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
+    <Product>Lockwell Setup</Product>
+    <Company>Lockwell</Company>
+    <Description>Installs and updates Lockwell.</Description>
+    <Copyright>Copyright 2026 Lockwell</Copyright>
+    <PackageLicenseExpression>GPL-3.0-or-later</PackageLicenseExpression>
+
+    <!-- Keep the build machine's folder layout out of the shipped binary. -->
+    <PathMap>$(MSBuildProjectDirectory)=Lockwell.Installer,$(MSBuildProjectDirectory)\..=.</PathMap>
+    <Deterministic>true</Deterministic>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <SelfContained>true</SelfContained>
+    <PublishSingleFile>true</PublishSingleFile>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+    <DebugType>None</DebugType>
+    <DebugSymbols>false</DebugSymbols>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- The installer verifies release signatures itself rather than trusting the app
+         that launched it. Same code, same key, checked where files are written. -->
+    <ProjectReference Include="..\Lockwell.Core\Lockwell.Core.csproj" />
+
+    <PackageReference Include="Obfuscar" Version="2.2.49">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <GeneratePathProperty>true</GeneratePathProperty>
+    </PackageReference>
+  </ItemGroup>
+  <Target Name="ObfuscateLockwellSetupForPublish" AfterTargets="AfterBuild" Condition="'$(LockwellInstallerPublish)' == 'true'">
+    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(ProjectDir)..\build-tools\obfuscar-installer-gen.ps1&quot; -InPath &quot;$(TargetDir).&quot; -OutPath &quot;$(TargetDir)obf_out&quot; -OutConfig &quot;$(ProjectDir)obfuscar-installer.gen.xml&quot;" />
+    <Exec Command="&quot;$(Obfuscar)&quot; &quot;$(ProjectDir)obfuscar-installer.gen.xml&quot;" WorkingDirectory="$(TargetDir)" />
+    <Copy SourceFiles="$(TargetDir)obf_out\LockwellSetup.dll" DestinationFiles="$(TargetDir)LockwellSetup.dll" Condition="Exists('$(TargetDir)obf_out\LockwellSetup.dll')" />
+    <RemoveDir Directories="$(TargetDir)obf_out" Condition="Exists('$(TargetDir)obf_out')" />
+  </Target>
+</Project>

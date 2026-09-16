@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Splash mark: the same padlock, same primitive-only construction. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="456" height="456" viewBox="0 0 456 456">
+  <circle cx="228" cy="185" r="64" fill="#2DD4BF" />
+  <circle cx="228" cy="185" r="38" fill="#06080D" />
+  <rect x="138" y="196" width="180" height="152" rx="32" fill="#2DD4BF" />
+  <circle cx="228" cy="258" r="17" fill="#06080D" />
+  <rect x="220" y="258" width="16" height="38" rx="8" fill="#06080D" />
+</svg>

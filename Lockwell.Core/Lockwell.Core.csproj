@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Shared between the Windows app and the Android companion.
+
+    Deliberately targets plain net8.0 with no UI and no OS-specific code, so the exact
+    same cryptography runs on both sides. Anything that needs a window, a file dialog
+    or a Win32 call belongs in the app projects, not here.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>Lockwell</RootNamespace>
+    <AssemblyName>Lockwell.Core</AssemblyName>
+    <Version>1.2.0</Version>
+    <AssemblyVersion>1.2.0.0</AssemblyVersion>
+    <FileVersion>1.2.0.0</FileVersion>
+    <Company>Lockwell</Company>
+    <Copyright>Copyright 2026 Lockwell</Copyright>
+    <PackageLicenseExpression>GPL-3.0-or-later</PackageLicenseExpression>
+
+    <!-- Keep the build machine's folder layout out of the shipped binary. -->
+    <PathMap>$(MSBuildProjectDirectory)=Lockwell.Core,$(MSBuildProjectDirectory)\..=.</PathMap>
+    <Deterministic>true</Deterministic>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Konscious.Security.Cryptography.Argon2" Version="1.3.1" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Release signing tool. Not shipped with the app and not referenced by it.
+
+    It exists so the two halves of the update trust chain are produced by the same code
+    the app verifies with: it links Lockwell.Core and calls ReleaseSigning directly,
+    rather than reimplementing the signature format in a script where it could drift.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>Lockwell.ReleaseKit</RootNamespace>
+    <AssemblyName>ReleaseKit</AssemblyName>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Lockwell.Core\Lockwell.Core.csproj" />
+  </ItemGroup>
+
+</Project>

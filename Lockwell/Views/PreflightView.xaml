@@ -1,0 +1,72 @@
+<UserControl x:Class="Lockwell.Views.PreflightView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid>
+        <Border x:Name="Card" Style="{StaticResource HeroCard}" Width="540" MaxHeight="580"
+                VerticalAlignment="Center" HorizontalAlignment="Center" Padding="32">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <StackPanel Grid.Row="0" Orientation="Horizontal">
+                    <Border Width="44" Height="44" CornerRadius="13"
+                            Background="{StaticResource GlassBg}" BorderBrush="{StaticResource GlassStroke}" BorderThickness="1"
+                            Effect="{StaticResource AccentGlowSoft}">
+                        <TextBlock x:Name="StatusGlyph" Text="&#xE9D9;" FontFamily="{StaticResource IconFont}"
+                                   FontSize="20" Foreground="{StaticResource Accent}"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <TextBlock x:Name="TitleText" Text="Checking your environment" Style="{StaticResource H2}"
+                               Margin="14,0,0,0" VerticalAlignment="Center" />
+                </StackPanel>
+
+                <TextBlock Grid.Row="1" x:Name="SubtitleText" Style="{StaticResource Caption}" Margin="0,8,0,0"
+                           Text="Looking for remote access, screen recorders, and active screen sharing before you unlock." />
+
+                <ScrollViewer Grid.Row="2" Margin="0,18,0,0" VerticalScrollBarVisibility="Auto">
+                    <ItemsControl x:Name="FindingsList">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Background="{StaticResource Bg2}" CornerRadius="10" Padding="14,12" Margin="0,0,0,8"
+                                        BorderThickness="1" BorderBrush="{StaticResource Stroke}">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Border Grid.Column="0" Width="8" Height="8" CornerRadius="4" VerticalAlignment="Top"
+                                                Margin="0,5,12,0" Background="{Binding SeverityBrush}" />
+                                        <StackPanel Grid.Column="1">
+                                            <TextBlock Text="{Binding DisplayName}" Style="{StaticResource Body}" FontWeight="SemiBold" />
+                                            <TextBlock Text="{Binding Reason}" Style="{StaticResource Caption}" Margin="0,2,0,0" />
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+
+                <CheckBox Grid.Row="3" x:Name="AcceptRisk" Margin="0,8,0,0" Visibility="Collapsed"
+                          Foreground="{StaticResource Text}" Checked="AcceptRisk_Changed" Unchecked="AcceptRisk_Changed"
+                          Content="I understand the risk and want to continue anyway." />
+
+                <Grid Grid.Row="4" Margin="0,20,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <Button Grid.Column="0" x:Name="RescanButton" Style="{StaticResource LinkButton}"
+                            Content="Scan again" HorizontalAlignment="Left" VerticalAlignment="Center" Click="Rescan_Click" />
+                    <Button Grid.Column="1" x:Name="ContinueButton" Style="{StaticResource AccentButton}"
+                            Content="Continue" MinWidth="140" IsEnabled="False" Click="Continue_Click" />
+                </Grid>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

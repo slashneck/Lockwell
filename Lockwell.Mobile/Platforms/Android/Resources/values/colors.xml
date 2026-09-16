@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android's own theme colours. These are not MAUI styles: they tint things drawn by
+  the platform before or outside any MAUI page, which is why leaving them at the .NET
+  template defaults leaked #512BD4 purple into the status bar and into the cursor,
+  selection handles and focus underline of every text field in the app.
+
+  They now come from Lockwell's palette in Resources/Styles/Lockwell.xaml.
+-->
+<resources>
+    <!-- Accent: text cursor, selection handles, focused field underline. -->
+    <color name="colorPrimary">#2DD4BF</color>
+
+    <!-- Status bar. Matched to the app background (Bg0) rather than given a colour of
+         its own, so the page runs to the top of the screen instead of sitting under a
+         band. Keeping it dark also keeps the white system icons legible, which a light
+         accent colour up there would not. -->
+    <color name="colorPrimaryDark">#06080D</color>
+
+    <color name="colorAccent">#2DD4BF</color>
+</resources>

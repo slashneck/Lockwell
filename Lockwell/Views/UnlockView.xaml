@@ -1,0 +1,106 @@
+<UserControl x:Class="Lockwell.Views.UnlockView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid>
+        <Border x:Name="Card" Style="{StaticResource HeroCard}" Width="430"
+                VerticalAlignment="Center" HorizontalAlignment="Center" Padding="36"
+                RenderTransformOrigin="0.5,0.5">
+            <Border.RenderTransform>
+                <TranslateTransform x:Name="Shake" />
+            </Border.RenderTransform>
+            <StackPanel>
+                <Border Width="64" Height="64" CornerRadius="18" HorizontalAlignment="Center"
+                        Background="{StaticResource GlassBg}" BorderBrush="{StaticResource GlassStroke}" BorderThickness="1"
+                        Effect="{StaticResource AccentGlowSoft}">
+                    <TextBlock Text="&#xE72E;" FontFamily="{StaticResource IconFont}" FontSize="28"
+                               Foreground="{StaticResource Accent}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </Border>
+                <TextBlock Text="Lockwell" Style="{StaticResource Hero}" HorizontalAlignment="Center" Margin="0,16,0,0" />
+                <TextBlock x:Name="ProfileLabel" Style="{StaticResource Caption}" Foreground="{StaticResource Accent}"
+                           HorizontalAlignment="Center" Margin="0,2,0,0" Visibility="Collapsed" />
+                <Border x:Name="UnlockRiskBanner" Visibility="Collapsed" Margin="0,14,0,0" Padding="12,10"
+                        CornerRadius="10" Background="#28F59E0B" BorderBrush="{StaticResource Warning}" BorderThickness="1">
+                    <StackPanel>
+                        <TextBlock Text="Screen sharing may be active" FontSize="12" FontWeight="SemiBold"
+                                   Foreground="{StaticResource Warning}" />
+                        <TextBlock x:Name="UnlockRiskBannerText" Style="{StaticResource Caption}" Margin="0,4,0,0"
+                                   TextWrapping="Wrap" TextAlignment="Center" />
+                        <Button Style="{StaticResource LinkButton}" Content="Scan again" HorizontalAlignment="Center"
+                                Margin="0,6,0,0" Click="RescanUnlockRisk_Click" />
+                    </StackPanel>
+                </Border>
+                <TextBlock Text="Enter your master password to unlock." Style="{StaticResource Caption}"
+                           HorizontalAlignment="Center" Margin="0,4,0,0" />
+                <Button x:Name="BackButton" Style="{StaticResource LinkButton}" Content="Back to profiles"
+                        HorizontalAlignment="Center" Margin="0,10,0,0" Click="Back_Click" Visibility="Collapsed" />
+
+                <!-- Password mode -->
+                <StackPanel x:Name="PasswordMode" Margin="0,24,0,0">
+                    <PasswordBox x:Name="Password" Style="{StaticResource InputPassword}" KeyDown="Password_KeyDown" />
+                    <Button x:Name="UnlockButton" Style="{StaticResource AccentButton}" Content="Unlock"
+                            Margin="0,14,0,0" Click="Unlock_Click" />
+                    <Button x:Name="UseRecoveryButton" Style="{StaticResource LinkButton}" Content="Use recovery key instead"
+                            HorizontalAlignment="Center" Margin="0,16,0,0" Click="ShowRecovery_Click" />
+                </StackPanel>
+
+                <!-- Recovery mode -->
+                <StackPanel x:Name="RecoveryMode" Margin="0,24,0,0" Visibility="Collapsed">
+                    <TextBlock Text="Recovery key" Style="{StaticResource Caption}" Margin="0,0,0,6" />
+                    <TextBox x:Name="RecoveryInput" Style="{StaticResource InputBox}" Height="64"
+                             TextWrapping="Wrap" AcceptsReturn="True" />
+                    <Button x:Name="RecoverButton" Style="{StaticResource AccentButton}" Content="Unlock with recovery key"
+                            Margin="0,14,0,0" Click="Recover_Click" />
+                    <Button Style="{StaticResource LinkButton}" Content="Back to password"
+                            HorizontalAlignment="Center" Margin="0,16,0,0" Click="ShowPassword_Click" />
+                </StackPanel>
+
+                <TextBlock x:Name="ErrorText" Style="{StaticResource Caption}" Foreground="{StaticResource Danger}"
+                           HorizontalAlignment="Center" Margin="0,16,0,0" Visibility="Collapsed" />
+            </StackPanel>
+        </Border>
+
+        <Grid x:Name="UnlockRiskGate" Visibility="Collapsed" Background="#D904060B">
+            <Border Style="{StaticResource HeroCard}" Width="480" MaxHeight="520" Padding="28"
+                    VerticalAlignment="Center" HorizontalAlignment="Center" Background="#F20C111B">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <TextBlock Grid.Row="0" Text="Stop sharing before unlock" Style="{StaticResource H2}" />
+                    <TextBlock Grid.Row="1" Style="{StaticResource Caption}" Margin="0,8,0,0" TextWrapping="Wrap"
+                               Text="We detected screen sharing or remote viewing that started after launch. Your master password could be visible to others." />
+                    <ScrollViewer Grid.Row="2" Margin="0,16,0,0" VerticalScrollBarVisibility="Auto" MaxHeight="220">
+                        <ItemsControl x:Name="UnlockRiskList">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Background="{StaticResource Bg2}" CornerRadius="10" Padding="12,10"
+                                            Margin="0,0,0,8" BorderBrush="{StaticResource Stroke}" BorderThickness="1">
+                                        <StackPanel>
+                                            <TextBlock Text="{Binding DisplayName}" Style="{StaticResource Body}" FontWeight="SemiBold" />
+                                            <TextBlock Text="{Binding Reason}" Style="{StaticResource Caption}" Margin="0,2,0,0" TextWrapping="Wrap" />
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                    <CheckBox Grid.Row="3" x:Name="UnlockRiskAccept" Margin="0,12,0,0"
+                              Foreground="{StaticResource Text}"
+                              Content="I stopped sharing and accept the risk of unlocking anyway."
+                              Checked="UnlockRiskAccept_Changed" Unchecked="UnlockRiskAccept_Changed" />
+                    <Grid Grid.Row="4" Margin="0,18,0,0">
+                        <Button Style="{StaticResource GhostButton}" Content="Go back" MinWidth="110"
+                                HorizontalAlignment="Left" Click="UnlockRiskCancel_Click" />
+                        <Button x:Name="UnlockRiskProceedButton" Style="{StaticResource AccentButton}"
+                                Content="Unlock anyway" MinWidth="130" HorizontalAlignment="Right"
+                                IsEnabled="False" Click="UnlockRiskProceed_Click" />
+                    </Grid>
+                </Grid>
+            </Border>
+        </Grid>
+    </Grid>
+</UserControl>

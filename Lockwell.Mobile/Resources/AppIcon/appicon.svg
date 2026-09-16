@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    App icon background layer.
+
+    This file is the background of the adaptive icon; appiconfg.svg is drawn on top of
+    it. The .NET template shipped a purple square here, which is why the icon still
+    looked like a .NET app even after the foreground padlock was correct.
+
+    Solid #06080D, the same near-black the desktop app uses.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="456" height="456" viewBox="0 0 456 456">
+  <rect width="456" height="456" fill="#06080D" />
+</svg>

@@ -1,0 +1,27 @@
+// Lockwell - local-only encrypted vault
+// Copyright (C) 2026 Lockwell
+//
+// This program is free software: you can redistribute it and/or modify it under
+// the terms of the GNU General Public License as published by the Free Software
+// Foundation, either version 3 of the License, or (at your option) any later
+// version.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+// FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License along with
+// this program. If not, see <https://www.gnu.org/licenses/>.
+
+namespace Lockwell.Models;
+
+/// <summary>One isolated vault (own folder, own master password).</summary>
+public sealed class VaultProfile
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString("N");
+    public string Name { get; set; } = "Default";
+    public string VaultDir { get; set; } = "";
+
+    /// <summary>UTC time of the last successful backup export for this profile.</summary>
+    public DateTime? LastBackupUtc { get; set; }
+}

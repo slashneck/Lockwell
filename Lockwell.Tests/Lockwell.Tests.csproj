@@ -1,0 +1,28 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The verification harness. Previously lived in a temp folder and was lost when that
+    folder was cleared, which is a bad place for the only safety net a crypto project
+    has. It lives in the solution now.
+
+    Run with: dotnet run, targeting this project.
+
+    Every check builds a throwaway vault in its own folder. Nothing here ever touches
+    the real vault in %LocalAppData%\Lockwell.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <AssemblyName>Lockwell.Tests</AssemblyName>
+    <RootNamespace>Lockwell.Tests</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Lockwell\Lockwell.csproj" />
+    <ProjectReference Include="..\Lockwell.Core\Lockwell.Core.csproj" />
+  </ItemGroup>
+
+</Project>

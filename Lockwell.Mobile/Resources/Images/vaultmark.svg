@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    The in-app padlock mark. Primitives only, same reason as the app icon: MAUI's
+    rasteriser silently emits a blank image for arcs and strokes.
+    Referenced from XAML as "vaultmark.png" - MAUI converts SVGs at build time.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 120 120">
+  <circle cx="60" cy="46" r="24" fill="#2DD4BF" />
+  <circle cx="60" cy="46" r="14" fill="#11151F" />
+  <rect x="26" y="50" width="68" height="54" rx="14" fill="#2DD4BF" />
+  <circle cx="60" cy="72" r="6.5" fill="#11151F" />
+  <rect x="57" y="72" width="6" height="14" rx="3" fill="#11151F" />
+</svg>

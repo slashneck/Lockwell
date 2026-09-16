@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="Lockwell.Mobile.Views.VaultsPage"
+             BackgroundColor="{StaticResource Bg0}"
+             NavigationPage.HasNavigationBar="False">
+
+    <Grid RowDefinitions="Auto,*">
+
+        <!-- Header -->
+        <VerticalStackLayout Grid.Row="0" Padding="24,52,24,16">
+            <HorizontalStackLayout Spacing="12">
+                <Border BackgroundColor="{StaticResource Bg2}"
+                        Stroke="{StaticResource Stroke}"
+                        StrokeThickness="1"
+                        WidthRequest="46" HeightRequest="46"
+                        StrokeShape="RoundRectangle 14">
+                    <Image Source="vaultmark.png" WidthRequest="24" HeightRequest="24"
+                           HorizontalOptions="Center" VerticalOptions="Center" />
+                </Border>
+                <VerticalStackLayout VerticalOptions="Center">
+                    <Label Text="Lockwell" FontSize="22" FontAttributes="Bold"
+                           TextColor="{StaticResource TextColor}" />
+                    <Label Text="Your local vault storage" FontSize="11"
+                           TextColor="{StaticResource Muted}" />
+                </VerticalStackLayout>
+            </HorizontalStackLayout>
+
+            <Label Text="YOUR VAULTS" Style="{StaticResource Overline}" Margin="2,28,0,0" />
+        </VerticalStackLayout>
+
+        <!-- List -->
+        <ScrollView Grid.Row="1">
+            <VerticalStackLayout Padding="24,0,24,40" Spacing="0">
+
+                <VerticalStackLayout x:Name="VaultList" Spacing="10" />
+
+                <!-- Empty state -->
+                <Border x:Name="EmptyCard" Style="{StaticResource Card}" IsVisible="False" Padding="24,26">
+                    <VerticalStackLayout Spacing="8" HorizontalOptions="Center">
+                        <Label Text="No vaults yet" Style="{StaticResource Body}"
+                               FontAttributes="Bold" HorizontalOptions="Center" />
+                        <Label Text="Create one to start locking away photos, files and notes on this phone. No PC needed."
+                               Style="{StaticResource Caption}" HorizontalTextAlignment="Center" />
+                    </VerticalStackLayout>
+                </Border>
+
+                <Button Text="+ Create a vault"
+                        Style="{StaticResource AccentButton}"
+                        Margin="0,18,0,0"
+                        Clicked="OnCreateVaultClicked" />
+
+                <!-- Storage summary -->
+                <Border Style="{StaticResource Card}" Margin="0,24,0,0">
+                    <VerticalStackLayout Spacing="8">
+                        <Label Text="STORAGE" Style="{StaticResource Overline}" />
+                        <Label x:Name="StorageUsed" Text="0 B" FontSize="20"
+                               FontAttributes="Bold" TextColor="{StaticResource TextColor}" />
+                        <Label Text="Everything lives in this app's private storage. Uninstalling Lockwell deletes all of it, with nothing left behind."
+                               Style="{StaticResource Caption}" FontSize="11" />
+                    </VerticalStackLayout>
+                </Border>
+
+                <Label Text="Nothing here leaves your phone."
+                       Style="{StaticResource Caption}" FontSize="11"
+                       TextColor="{StaticResource Faint}"
+                       HorizontalOptions="Center" Margin="0,20,0,0" />
+
+            </VerticalStackLayout>
+        </ScrollView>
+    </Grid>
+
+</ContentPage>

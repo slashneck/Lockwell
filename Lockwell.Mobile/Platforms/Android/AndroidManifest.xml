@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+	<!--
+		allowBackup="false" is not optional for this app. Left on, Android's automatic
+		backup can copy app data into the user's Google account, which would push an
+		encrypted vault into exactly the cloud this whole project exists to avoid.
+		fullBackupContent and dataExtractionRules close the same door on older and
+		newer API levels respectively.
+	-->
+	<application
+		android:allowBackup="false"
+		android:fullBackupContent="false"
+		android:dataExtractionRules="@xml/data_extraction_rules"
+		android:icon="@mipmap/appicon"
+		android:roundIcon="@mipmap/appicon_round"
+		android:supportsRtl="true"
+		android:usesCleartextTraffic="false" />
+
+	<!--
+		INTERNET is required for local-network sockets on Android; it does not mean the
+		app talks to the internet, and it never does. All traffic is device-to-device on
+		the local network. ACCESS_NETWORK_STATE and the WIFI permissions are what mDNS
+		discovery needs to find a paired PC.
+	-->
+	<uses-permission android:name="android.permission.INTERNET" />
+	<uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+	<uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+	<uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
+
+	<!-- Camera is used for one thing only: scanning the pairing QR code. -->
+	<uses-permission android:name="android.permission.CAMERA" />
+	<uses-feature android:name="android.hardware.camera" android:required="false" />
+
+	<!-- Biometric unlock, gating a Keystore key. Never a replacement for the password. -->
+	<uses-permission android:name="android.permission.USE_BIOMETRIC" />
+
+</manifest>

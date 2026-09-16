@@ -1,0 +1,184 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!--
+    The desktop app's design tokens, so the phone reads as the same product.
+    Values lifted directly from Lockwell/Themes/Theme.xaml.
+-->
+<ResourceDictionary xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml">
+
+    <Color x:Key="Bg0">#06080D</Color>
+    <Color x:Key="Bg1">#0A0E16</Color>
+    <Color x:Key="Bg2">#11151F</Color>
+    <Color x:Key="Bg3">#1A2030</Color>
+    <Color x:Key="Stroke">#1E2A36</Color>
+    <Color x:Key="Accent">#2DD4BF</Color>
+    <Color x:Key="Accent2">#38BDF8</Color>
+    <Color x:Key="Violet">#7C5CFF</Color>
+    <Color x:Key="TextColor">#E8EEF5</Color>
+    <Color x:Key="Muted">#7C8B9A</Color>
+    <Color x:Key="Faint">#4A5866</Color>
+    <Color x:Key="Warning">#F5C35C</Color>
+    <Color x:Key="Danger">#F87171</Color>
+
+    <Style x:Key="Card" TargetType="Border">
+        <Setter Property="BackgroundColor" Value="{StaticResource Bg2}" />
+        <Setter Property="Stroke" Value="{StaticResource Stroke}" />
+        <Setter Property="StrokeThickness" Value="1" />
+        <Setter Property="Padding" Value="18,16" />
+        <Setter Property="StrokeShape" Value="RoundRectangle 16" />
+    </Style>
+
+    <Style x:Key="Overline" TargetType="Label">
+        <Setter Property="FontSize" Value="10" />
+        <Setter Property="TextColor" Value="{StaticResource Faint}" />
+        <Setter Property="CharacterSpacing" Value="1.6" />
+        <Setter Property="FontAttributes" Value="Bold" />
+    </Style>
+
+    <!-- A section heading, with the space above it built in so every screen agrees. -->
+    <Style x:Key="SectionHeading" TargetType="Label" BasedOn="{StaticResource Overline}">
+        <Setter Property="Margin" Value="4,26,0,10" />
+    </Style>
+
+    <Style x:Key="H1" TargetType="Label">
+        <Setter Property="FontSize" Value="26" />
+        <Setter Property="FontAttributes" Value="Bold" />
+        <Setter Property="TextColor" Value="{StaticResource TextColor}" />
+    </Style>
+
+    <Style x:Key="Body" TargetType="Label">
+        <Setter Property="FontSize" Value="14" />
+        <Setter Property="TextColor" Value="{StaticResource TextColor}" />
+    </Style>
+
+    <Style x:Key="Caption" TargetType="Label">
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="TextColor" Value="{StaticResource Muted}" />
+    </Style>
+
+    <Style x:Key="AccentButton" TargetType="Button">
+        <Setter Property="BackgroundColor" Value="{StaticResource Accent}" />
+        <Setter Property="TextColor" Value="{StaticResource Bg0}" />
+        <Setter Property="FontAttributes" Value="Bold" />
+        <Setter Property="FontSize" Value="15" />
+        <Setter Property="CornerRadius" Value="12" />
+        <Setter Property="HeightRequest" Value="52" />
+    </Style>
+
+    <Style x:Key="GhostButton" TargetType="Button">
+        <Setter Property="BackgroundColor" Value="Transparent" />
+        <Setter Property="TextColor" Value="{StaticResource Muted}" />
+        <Setter Property="BorderColor" Value="{StaticResource Stroke}" />
+        <Setter Property="BorderWidth" Value="1" />
+        <Setter Property="FontSize" Value="14" />
+        <Setter Property="CornerRadius" Value="12" />
+        <Setter Property="HeightRequest" Value="46" />
+    </Style>
+
+    <Style x:Key="TabButton" TargetType="Button">
+        <Setter Property="BackgroundColor" Value="Transparent" />
+        <Setter Property="TextColor" Value="{StaticResource Muted}" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="CornerRadius" Value="10" />
+        <Setter Property="HeightRequest" Value="42" />
+    </Style>
+
+    <!--
+      One tab in the bottom bar. A Border rather than a Button because a button on
+      Android insists on its own ripple, elevation and text casing, and fighting those
+      is more work than drawing the thing directly.
+    -->
+    <Style x:Key="TabChip" TargetType="Border">
+        <Setter Property="BackgroundColor" Value="Transparent" />
+        <Setter Property="Stroke" Value="Transparent" />
+        <Setter Property="StrokeThickness" Value="1" />
+        <Setter Property="Padding" Value="0,7" />
+        <Setter Property="StrokeShape" Value="RoundRectangle 12" />
+    </Style>
+
+    <!--
+      ============================================================
+      Grouped settings, the way a phone settings screen is built.
+
+      A column of full-width outlined buttons reads as a form to fill in, which is the
+      wrong signal for a list of things you occasionally change. Grouping related rows
+      inside one surface, separated by hairlines, says "these belong together" and lets
+      the eye skip whole groups instead of reading every line.
+      ============================================================
+    -->
+    <Style x:Key="SettingsGroup" TargetType="Border">
+        <Setter Property="BackgroundColor" Value="{StaticResource Bg2}" />
+        <Setter Property="Stroke" Value="{StaticResource Stroke}" />
+        <Setter Property="StrokeThickness" Value="1" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="StrokeShape" Value="RoundRectangle 16" />
+    </Style>
+
+    <!-- One tappable row inside a group. -->
+    <Style x:Key="SettingsRow" TargetType="Grid">
+        <Setter Property="Padding" Value="16,15" />
+        <Setter Property="ColumnSpacing" Value="12" />
+    </Style>
+
+    <!-- Hairline between rows, inset so it does not touch the rounded corners. -->
+    <Style x:Key="Divider" TargetType="BoxView">
+        <Setter Property="HeightRequest" Value="1" />
+        <Setter Property="Color" Value="{StaticResource Stroke}" />
+        <Setter Property="BackgroundColor" Value="{StaticResource Stroke}" />
+        <Setter Property="Margin" Value="16,0,0,0" />
+    </Style>
+
+    <!-- The chevron on a row that leads somewhere. -->
+    <Style x:Key="RowChevron" TargetType="Label">
+        <Setter Property="Text" Value="&#x203A;" />
+        <Setter Property="FontSize" Value="18" />
+        <Setter Property="TextColor" Value="{StaticResource Faint}" />
+        <Setter Property="VerticalOptions" Value="Center" />
+    </Style>
+
+    <!-- The value shown on the right of a row, before the chevron. -->
+    <Style x:Key="RowValue" TargetType="Label">
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="TextColor" Value="{StaticResource Accent}" />
+        <Setter Property="VerticalOptions" Value="Center" />
+    </Style>
+
+    <Style x:Key="RowTitle" TargetType="Label">
+        <Setter Property="FontSize" Value="15" />
+        <Setter Property="TextColor" Value="{StaticResource TextColor}" />
+    </Style>
+
+    <Style x:Key="RowNote" TargetType="Label">
+        <Setter Property="FontSize" Value="11.5" />
+        <Setter Property="LineHeight" Value="1.3" />
+        <Setter Property="TextColor" Value="{StaticResource Muted}" />
+        <Setter Property="Margin" Value="0,3,0,0" />
+    </Style>
+
+    <!-- A destructive row reads red from the title, not only at the confirmation. -->
+    <Style x:Key="RowTitleDanger" TargetType="Label" BasedOn="{StaticResource RowTitle}">
+        <Setter Property="TextColor" Value="{StaticResource Danger}" />
+    </Style>
+
+    <Style x:Key="H2" TargetType="Label">
+        <Setter Property="FontSize" Value="17" />
+        <Setter Property="FontAttributes" Value="Bold" />
+        <Setter Property="TextColor" Value="{StaticResource TextColor}" />
+    </Style>
+
+    <Style x:Key="InputField" TargetType="Border">
+        <Setter Property="BackgroundColor" Value="{StaticResource Bg1}" />
+        <Setter Property="Stroke" Value="{StaticResource Stroke}" />
+        <Setter Property="StrokeThickness" Value="1" />
+        <Setter Property="Padding" Value="14,2" />
+        <Setter Property="StrokeShape" Value="RoundRectangle 12" />
+    </Style>
+
+    <Style x:Key="InputEntry" TargetType="Entry">
+        <Setter Property="TextColor" Value="{StaticResource TextColor}" />
+        <Setter Property="PlaceholderColor" Value="{StaticResource Faint}" />
+        <Setter Property="BackgroundColor" Value="Transparent" />
+        <Setter Property="FontSize" Value="15" />
+    </Style>
+
+</ResourceDictionary>

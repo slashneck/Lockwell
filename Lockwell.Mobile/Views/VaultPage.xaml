@@ -1,0 +1,337 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="Lockwell.Mobile.Views.VaultPage"
+             BackgroundColor="{StaticResource Bg0}"
+             NavigationPage.HasNavigationBar="False">
+
+    <Grid RowDefinitions="Auto,*,Auto">
+
+        <!-- ===================== Header ===================== -->
+        <Grid Grid.Row="0" Padding="20,52,20,14" ColumnDefinitions="Auto,*,Auto"
+              BackgroundColor="{StaticResource Bg0}">
+            <Label x:Name="HeaderGlyph" Grid.Column="0" Text="&#x1F512;" FontSize="26"
+                   VerticalOptions="Center" Margin="0,0,12,0" />
+            <VerticalStackLayout Grid.Column="1" VerticalOptions="Center">
+                <Label x:Name="HeaderName" FontSize="19" FontAttributes="Bold"
+                       TextColor="{StaticResource TextColor}" />
+                <Label x:Name="HeaderSummary" FontSize="11" TextColor="{StaticResource Accent}" />
+            </VerticalStackLayout>
+            <Button Grid.Column="2" Text="Lock" Style="{StaticResource GhostButton}"
+                    HeightRequest="38" WidthRequest="76" FontSize="12"
+                    Clicked="OnLockClicked" />
+        </Grid>
+
+        <!-- ===================== Body ===================== -->
+        <ScrollView Grid.Row="1">
+            <VerticalStackLayout Padding="14,0,14,24" Spacing="0">
+
+                <!-- ITEMS -->
+                <VerticalStackLayout x:Name="ItemsSection" Spacing="0" Padding="0,0,0,80">
+
+                    <!-- Where you are, and how the contents are ordered. The breadcrumb
+                         scrolls sideways so a deep folder never squeezes the buttons out. -->
+                    <Grid ColumnDefinitions="*,Auto,Auto" Margin="0,6,0,12" ColumnSpacing="6">
+                        <ScrollView Grid.Column="0" Orientation="Horizontal"
+                                    HorizontalScrollBarVisibility="Never" VerticalOptions="Center">
+                            <HorizontalStackLayout x:Name="Breadcrumb" Spacing="2"
+                                                   VerticalOptions="Center" />
+                        </ScrollView>
+
+                        <Button x:Name="NewFolderButton" Grid.Column="1" Text="New folder"
+                                Style="{StaticResource GhostButton}" HeightRequest="36"
+                                FontSize="12" Padding="12,0" Clicked="OnNewFolderClicked" />
+
+                        <Button x:Name="SortButton" Grid.Column="2" Text="Sort"
+                                Style="{StaticResource GhostButton}" HeightRequest="36"
+                                FontSize="12" Padding="12,0" Clicked="OnSortClicked" />
+                    </Grid>
+
+                    <Label x:Name="LibraryCount" Style="{StaticResource Caption}"
+                           FontSize="11" Margin="2,0,0,8" />
+
+                    <!-- Folders sit above the media grid, as rows rather than tiles, so a
+                         folder is never mistaken for a photo at a glance. -->
+                    <VerticalStackLayout x:Name="FolderList" Spacing="8" Margin="0,0,0,4" />
+
+                    <!-- The gallery itself, built in code so the column count can follow
+                         the width of the screen. -->
+                    <Grid x:Name="ItemGrid" ColumnSpacing="10" RowSpacing="10" Margin="0,8,0,0" />
+
+                    <Border x:Name="EmptyCard" Style="{StaticResource Card}" Padding="24,26"
+                            Margin="0,8,0,0">
+                        <VerticalStackLayout Spacing="8" HorizontalOptions="Center">
+                            <Label x:Name="EmptyTitle" Text="Nothing in here yet"
+                                   Style="{StaticResource Body}"
+                                   FontAttributes="Bold" HorizontalOptions="Center" />
+                            <Label x:Name="EmptyBody"
+                                   Text="Add photos, videos or files from this phone. They are encrypted the moment they land here."
+                                   Style="{StaticResource Caption}" HorizontalTextAlignment="Center" />
+                        </VerticalStackLayout>
+                    </Border>
+                </VerticalStackLayout>
+
+                <!-- DEVICES -->
+                <VerticalStackLayout x:Name="DevicesSection" Spacing="0" IsVisible="False">
+
+                    <Label Text="LINKED" Style="{StaticResource SectionHeading}" Margin="4,6,0,10" />
+
+                    <VerticalStackLayout x:Name="DeviceList" Spacing="10" />
+
+                    <!-- Shown only when nothing is linked. Not a warning: this vault is
+                         complete on its own and the screen should say so. -->
+                    <Border x:Name="NoDevicesCard" Style="{StaticResource SettingsGroup}"
+                            Padding="20,24" IsVisible="False">
+                        <VerticalStackLayout Spacing="10" HorizontalOptions="Center">
+                            <Label Text="&#x1F4BB;" FontSize="26" HorizontalOptions="Center"
+                                   Opacity="0.5" />
+                            <Label Text="Nothing linked" Style="{StaticResource H2}"
+                                   HorizontalOptions="Center" />
+                            <Label Text="This vault works fully on its own. Link a PC only if you want to move items between them, over your own network."
+                                   Style="{StaticResource RowNote}"
+                                   HorizontalTextAlignment="Center" />
+                        </VerticalStackLayout>
+                    </Border>
+
+                    <Button Text="Link a PC" Style="{StaticResource AccentButton}"
+                            Margin="0,16,0,0" Clicked="OnLinkClicked" />
+
+                    <Label Text="HOW IT WORKS" Style="{StaticResource SectionHeading}" />
+                    <Border Style="{StaticResource SettingsGroup}">
+                        <VerticalStackLayout Spacing="0">
+
+                            <Grid Style="{StaticResource SettingsRow}" ColumnDefinitions="Auto,*">
+                                <Label Grid.Column="0" Text="&#x1F512;" FontSize="16"
+                                       VerticalOptions="Start" Margin="0,1,10,0" />
+                                <VerticalStackLayout Grid.Column="1">
+                                    <Label Text="Direct, with no server" Style="{StaticResource RowTitle}" />
+                                    <Label Style="{StaticResource RowNote}"
+                                           Text="Your phone and PC talk to each other over your own network. There is no account, nothing is uploaded, and no company sits in the middle." />
+                                </VerticalStackLayout>
+                            </Grid>
+
+                            <BoxView Style="{StaticResource Divider}" />
+
+                            <Grid Style="{StaticResource SettingsRow}" ColumnDefinitions="Auto,*">
+                                <Label Grid.Column="0" Text="&#x1F511;" FontSize="16"
+                                       VerticalOptions="Start" Margin="0,1,10,0" />
+                                <VerticalStackLayout Grid.Column="1">
+                                    <Label Text="Each device keeps its own key" Style="{StaticResource RowTitle}" />
+                                    <Label Style="{StaticResource RowNote}"
+                                           Text="Items are re-encrypted with this phone's key when they arrive. The PC's key never crosses, so losing this phone tells nobody anything about the PC vault." />
+                                </VerticalStackLayout>
+                            </Grid>
+
+                            <BoxView Style="{StaticResource Divider}" />
+
+                            <Grid Style="{StaticResource SettingsRow}" ColumnDefinitions="Auto,*">
+                                <Label Grid.Column="0" Text="&#x1F44B;" FontSize="16"
+                                       VerticalOptions="Start" Margin="0,1,10,0" />
+                                <VerticalStackLayout Grid.Column="1">
+                                    <Label Text="Linking moves nothing by itself" Style="{StaticResource RowTitle}" />
+                                    <Label Style="{StaticResource RowNote}"
+                                           Text="Pairing two devices does not copy anything. You choose each item to send, every time." />
+                                </VerticalStackLayout>
+                            </Grid>
+
+                        </VerticalStackLayout>
+                    </Border>
+
+                </VerticalStackLayout>
+
+                <!-- SETTINGS -->
+                <VerticalStackLayout x:Name="SettingsSection" Spacing="0" IsVisible="False">
+
+                    <!-- Getting in -->
+                    <Label Text="GETTING IN" Style="{StaticResource SectionHeading}" Margin="4,6,0,10" />
+                    <Border Style="{StaticResource SettingsGroup}">
+                        <VerticalStackLayout Spacing="0">
+
+                            <Grid Style="{StaticResource SettingsRow}" ColumnDefinitions="*,Auto">
+                                <VerticalStackLayout Grid.Column="0" VerticalOptions="Center">
+                                    <Label Text="Fingerprint or face" Style="{StaticResource RowTitle}" />
+                                    <Label x:Name="BiometricNote" Style="{StaticResource RowNote}"
+                                           Text="Unlocks a key held by this phone's secure hardware. Your password still works and is never stored." />
+                                </VerticalStackLayout>
+                                <Switch x:Name="BiometricSwitch" Grid.Column="1" VerticalOptions="Center"
+                                        OnColor="{StaticResource Accent}"
+                                        Toggled="OnBiometricSwitchToggled" />
+                            </Grid>
+
+                            <BoxView Style="{StaticResource Divider}" />
+
+                            <Grid Style="{StaticResource SettingsRow}" ColumnDefinitions="*,Auto,Auto">
+                                <Label Grid.Column="0" Text="Change password" Style="{StaticResource RowTitle}"
+                                       VerticalOptions="Center" />
+                                <Label Grid.Column="2" Style="{StaticResource RowChevron}" />
+                                <Grid.GestureRecognizers>
+                                    <TapGestureRecognizer Tapped="OnChangePasswordClicked" />
+                                </Grid.GestureRecognizers>
+                            </Grid>
+
+                            <BoxView Style="{StaticResource Divider}" />
+
+                            <Grid Style="{StaticResource SettingsRow}" ColumnDefinitions="*,Auto,Auto">
+                                <Label Grid.Column="0" Text="Rename vault" Style="{StaticResource RowTitle}"
+                                       VerticalOptions="Center" />
+                                <Label x:Name="RenameValue" Grid.Column="1" Style="{StaticResource RowValue}" />
+                                <Label Grid.Column="2" Style="{StaticResource RowChevron}" />
+                                <Grid.GestureRecognizers>
+                                    <TapGestureRecognizer Tapped="OnRenameClicked" />
+                                </Grid.GestureRecognizers>
+                            </Grid>
+
+                        </VerticalStackLayout>
+                    </Border>
+
+                    <!-- Locking -->
+                    <Label Text="LOCKING" Style="{StaticResource SectionHeading}" />
+                    <Border Style="{StaticResource SettingsGroup}">
+                        <VerticalStackLayout Spacing="0">
+
+                            <Grid Style="{StaticResource SettingsRow}" ColumnDefinitions="*,Auto,Auto">
+                                <VerticalStackLayout Grid.Column="0" VerticalOptions="Center">
+                                    <Label Text="Lock when I leave" Style="{StaticResource RowTitle}" />
+                                    <Label Style="{StaticResource RowNote}"
+                                           Text="Switching to another app leaves this vault open behind it unless it locks. Screenshots and the recent-apps preview are blocked either way." />
+                                </VerticalStackLayout>
+                                <Label x:Name="AutoLockValue" Grid.Column="1" Style="{StaticResource RowValue}" />
+                                <Label Grid.Column="2" Style="{StaticResource RowChevron}" />
+                                <Grid.GestureRecognizers>
+                                    <TapGestureRecognizer Tapped="OnAutoLockClicked" />
+                                </Grid.GestureRecognizers>
+                            </Grid>
+
+                        </VerticalStackLayout>
+                    </Border>
+
+                    <!-- If this phone is lost -->
+                    <Label Text="IF THIS PHONE IS LOST" Style="{StaticResource SectionHeading}" />
+                    <Border Style="{StaticResource SettingsGroup}">
+                        <VerticalStackLayout Spacing="0">
+
+                            <Grid Style="{StaticResource SettingsRow}" ColumnDefinitions="*,Auto">
+                                <VerticalStackLayout Grid.Column="0" VerticalOptions="Center">
+                                    <Label x:Name="StaleWipeTitle" Style="{StaticResource RowTitle}"
+                                           Text="Wipe items a PC sent" />
+                                    <Label Style="{StaticResource RowNote}"
+                                           Text="Only removes things a PC sent, which still exist there. Anything added on this phone is never touched, because it may be the only copy." />
+                                </VerticalStackLayout>
+                                <Switch x:Name="StaleWipeSwitch" Grid.Column="1" VerticalOptions="Center"
+                                        OnColor="{StaticResource Accent}"
+                                        Toggled="OnStaleWipeToggled" />
+                            </Grid>
+
+                            <BoxView x:Name="StaleWindowDivider" Style="{StaticResource Divider}"
+                                     IsVisible="False" />
+
+                            <Grid x:Name="StaleWindowRow" Style="{StaticResource SettingsRow}"
+                                  ColumnDefinitions="*,Auto,Auto" IsVisible="False">
+                                <Label Grid.Column="0" Text="Wipe after" Style="{StaticResource RowTitle}"
+                                       VerticalOptions="Center" />
+                                <Label x:Name="StaleWindowValue" Grid.Column="1" Style="{StaticResource RowValue}" />
+                                <Label Grid.Column="2" Style="{StaticResource RowChevron}" />
+                                <Grid.GestureRecognizers>
+                                    <TapGestureRecognizer Tapped="OnStaleWindowClicked" />
+                                </Grid.GestureRecognizers>
+                            </Grid>
+
+                        </VerticalStackLayout>
+                    </Border>
+
+                    <Label x:Name="LastSyncLabel" Style="{StaticResource Caption}"
+                           FontSize="11" Margin="4,8,0,0" />
+
+                    <!-- Storage -->
+                    <Label Text="STORAGE" Style="{StaticResource SectionHeading}" />
+                    <Border Style="{StaticResource SettingsGroup}">
+                        <VerticalStackLayout Spacing="0" Padding="16,15">
+                            <Label x:Name="StorageUsed" Text="0 B" FontSize="24"
+                                   FontAttributes="Bold" TextColor="{StaticResource TextColor}" />
+                            <Label Style="{StaticResource RowNote}"
+                                   Text="Everything lives in this app's private storage. Uninstalling Lockwell deletes all of it, with nothing left behind." />
+                        </VerticalStackLayout>
+                    </Border>
+
+                    <!-- Danger -->
+                    <Label Text="DANGER" Style="{StaticResource SectionHeading}" />
+                    <Border Style="{StaticResource SettingsGroup}"
+                            Stroke="{StaticResource Danger}">
+                        <VerticalStackLayout Spacing="0">
+                            <Grid Style="{StaticResource SettingsRow}" ColumnDefinitions="*,Auto">
+                                <VerticalStackLayout Grid.Column="0" VerticalOptions="Center">
+                                    <Label Text="Delete this vault" Style="{StaticResource RowTitleDanger}" />
+                                    <Label Style="{StaticResource RowNote}"
+                                           Text="Everything in it goes, permanently. You will be asked to type the name first." />
+                                </VerticalStackLayout>
+                                <Label Grid.Column="1" Style="{StaticResource RowChevron}"
+                                       TextColor="{StaticResource Danger}" />
+                                <Grid.GestureRecognizers>
+                                    <TapGestureRecognizer Tapped="OnDeleteVaultClicked" />
+                                </Grid.GestureRecognizers>
+                            </Grid>
+                        </VerticalStackLayout>
+                    </Border>
+
+                </VerticalStackLayout>
+
+            </VerticalStackLayout>
+        </ScrollView>
+
+        <!-- ===================== Tabs =====================
+             A hairline above the bar so it reads as a separate surface from the page
+             rather than the page simply ending, and an icon over each label so the
+             active tab is recognisable at a glance instead of by reading three words.
+        -->
+        <Grid Grid.Row="2" RowDefinitions="Auto,Auto" BackgroundColor="{StaticResource Bg1}">
+            <BoxView Grid.Row="0" HeightRequest="1" Color="{StaticResource Stroke}"
+                     BackgroundColor="{StaticResource Stroke}" />
+
+            <Grid Grid.Row="1" ColumnDefinitions="*,*,*" Padding="10,6,10,14" ColumnSpacing="6">
+                <Border x:Name="TabItems" Grid.Column="0" Style="{StaticResource TabChip}">
+                    <VerticalStackLayout Spacing="1">
+                        <Label x:Name="TabItemsIcon" Text="&#x1F5C2;" FontSize="17"
+                               HorizontalOptions="Center" />
+                        <Label x:Name="TabItemsText" Text="Items" FontSize="11"
+                               HorizontalOptions="Center" />
+                    </VerticalStackLayout>
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnTabItems" />
+                    </Border.GestureRecognizers>
+                </Border>
+
+                <Border x:Name="TabDevices" Grid.Column="1" Style="{StaticResource TabChip}">
+                    <VerticalStackLayout Spacing="1">
+                        <Label x:Name="TabDevicesIcon" Text="&#x1F4BB;" FontSize="17"
+                               HorizontalOptions="Center" />
+                        <Label x:Name="TabDevicesText" Text="Devices" FontSize="11"
+                               HorizontalOptions="Center" />
+                    </VerticalStackLayout>
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnTabDevices" />
+                    </Border.GestureRecognizers>
+                </Border>
+
+                <Border x:Name="TabSettings" Grid.Column="2" Style="{StaticResource TabChip}">
+                    <VerticalStackLayout Spacing="1">
+                        <Label x:Name="TabSettingsIcon" Text="&#x2699;" FontSize="17"
+                               HorizontalOptions="Center" />
+                        <Label x:Name="TabSettingsText" Text="Settings" FontSize="11"
+                               HorizontalOptions="Center" />
+                    </VerticalStackLayout>
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnTabSettings" />
+                    </Border.GestureRecognizers>
+                </Border>
+            </Grid>
+        </Grid>
+
+        <!-- Add button, floating over the item list -->
+        <Button x:Name="AddButton" Grid.Row="1" Text="+ Add to vault"
+                Style="{StaticResource AccentButton}"
+                HorizontalOptions="Center" VerticalOptions="End"
+                WidthRequest="200" Margin="0,0,0,18"
+                Clicked="OnAddClicked" />
+    </Grid>
+
+</ContentPage>

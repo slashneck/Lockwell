@@ -1,0 +1,389 @@
+<Window x:Class="Lockwell.Installer.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:Lockwell.Installer"
+        Title="Lockwell Setup"
+        Width="720"
+        Height="512"
+        WindowStartupLocation="CenterScreen"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        ResizeMode="NoResize"
+        TextOptions.TextFormattingMode="Ideal"
+        TextOptions.TextRenderingMode="ClearType"
+        FontFamily="Segoe UI Variable Text, Segoe UI, sans-serif">
+    <Window.Resources>
+        <local:IntEqualsConverter x:Key="IntEquals" />
+        <local:BoolToInstallTitleConverter x:Key="InstallTitle" />
+        <local:BoolToInstallSubtitleConverter x:Key="InstallSubtitle" />
+        <local:StepMarkerBrushConverter x:Key="StepMarkerBrush" />
+        <local:StepMarkerStrokeConverter x:Key="StepMarkerStroke" />
+        <local:StepNumberBrushConverter x:Key="StepNumberBrush" />
+        <local:StepLabelBrushConverter x:Key="StepLabelBrush" />
+        <BooleanToVisibilityConverter x:Key="BoolToVis" />
+    </Window.Resources>
+
+    <!--
+        No Effect anywhere in this tree. A drop shadow on the shell used to sit above every
+        piece of text in the window, and WPF renders an effect by rasterising the subtree
+        underneath it, which softens the glyphs. The depth here comes from the border
+        stroke and the gradients instead.
+    -->
+    <Border Background="{StaticResource InstallerShellGradient}"
+            BorderBrush="{StaticResource InstallerStroke}"
+            BorderThickness="1"
+            CornerRadius="12">
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="228" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <!-- ==================== Side rail ==================== -->
+            <Border Grid.Column="0"
+                    Background="{StaticResource InstallerRailGradient}"
+                    CornerRadius="12,0,0,12"
+                    MouseLeftButtonDown="TitleBar_MouseDown">
+                <Grid Margin="24,26,20,22">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <!-- Wordmark -->
+                    <StackPanel Grid.Row="0" Orientation="Horizontal">
+                        <Border Width="28"
+                                Height="28"
+                                CornerRadius="9"
+                                Background="{StaticResource InstallerMarkBrush}"
+                                VerticalAlignment="Center">
+                            <Path Data="M 7 10 L 7 7.5 A 4 4 0 0 1 15 7.5 L 15 10 M 5.5 10 L 16.5 10 L 16.5 17.5 L 5.5 17.5 Z"
+                                  Stroke="#06080D"
+                                  StrokeThickness="1.6"
+                                  StrokeLineJoin="Round"
+                                  Fill="#1406080D"
+                                  Width="22"
+                                  Height="22"
+                                  Stretch="Uniform"
+                                  Margin="3" />
+                        </Border>
+                        <StackPanel Margin="11,0,0,0" VerticalAlignment="Center">
+                            <TextBlock Text="Lockwell" Style="{StaticResource InstallerWordmark}" />
+                            <TextBlock Text="Setup"
+                                       Foreground="{StaticResource InstallerFaint}"
+                                       FontSize="11"
+                                       Margin="0,1,0,0" />
+                        </StackPanel>
+                    </StackPanel>
+
+                    <Border Grid.Row="1"
+                            Height="1"
+                            Margin="0,22,0,0"
+                            Background="{StaticResource InstallerStroke}" />
+
+                    <!-- Steps -->
+                    <ItemsControl Grid.Row="2"
+                                  Margin="0,22,0,0"
+                                  ItemsSource="{Binding StepRail}"
+                                  VerticalAlignment="Top">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
+                                    <Border Style="{StaticResource InstallerStepNumber}">
+                                        <Border.Background>
+                                            <MultiBinding Converter="{StaticResource StepMarkerBrush}">
+                                                <Binding Path="Number" />
+                                                <Binding Path="DataContext.StepIndex" RelativeSource="{RelativeSource AncestorType=Window}" />
+                                            </MultiBinding>
+                                        </Border.Background>
+                                        <Border.BorderBrush>
+                                            <MultiBinding Converter="{StaticResource StepMarkerStroke}">
+                                                <Binding Path="Number" />
+                                                <Binding Path="DataContext.StepIndex" RelativeSource="{RelativeSource AncestorType=Window}" />
+                                            </MultiBinding>
+                                        </Border.BorderBrush>
+                                        <TextBlock Text="{Binding Number}"
+                                                   FontSize="11"
+                                                   FontWeight="SemiBold"
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center">
+                                            <TextBlock.Foreground>
+                                                <MultiBinding Converter="{StaticResource StepNumberBrush}">
+                                                    <Binding Path="Number" />
+                                                    <Binding Path="DataContext.StepIndex" RelativeSource="{RelativeSource AncestorType=Window}" />
+                                                </MultiBinding>
+                                            </TextBlock.Foreground>
+                                        </TextBlock>
+                                    </Border>
+                                    <TextBlock Text="{Binding Label}"
+                                               FontSize="12.5"
+                                               VerticalAlignment="Center"
+                                               Margin="12,0,0,0">
+                                        <TextBlock.Foreground>
+                                            <MultiBinding Converter="{StaticResource StepLabelBrush}">
+                                                <Binding Path="Number" />
+                                                <Binding Path="DataContext.StepIndex" RelativeSource="{RelativeSource AncestorType=Window}" />
+                                            </MultiBinding>
+                                        </TextBlock.Foreground>
+                                    </TextBlock>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <!-- Rail footer -->
+                    <StackPanel Grid.Row="3">
+                        <TextBlock Text="Local-only encrypted vault."
+                                   Style="{StaticResource InstallerCaption}" />
+                        <TextBlock Text="Your data never leaves this PC."
+                                   Style="{StaticResource InstallerCaption}"
+                                   Margin="0,3,0,0" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!-- ==================== Content ==================== -->
+            <Grid Grid.Column="1">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="40" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <!-- Window chrome -->
+                <Grid Grid.Row="0" Background="Transparent" MouseLeftButtonDown="TitleBar_MouseDown">
+                    <Button Style="{StaticResource InstallerChromeCloseButton}"
+                            HorizontalAlignment="Right"
+                            VerticalAlignment="Center"
+                            Margin="0,0,10,0"
+                            Content="✕"
+                            ToolTip="Close"
+                            Click="Close_Click" />
+                </Grid>
+
+                <Grid Grid.Row="1" Margin="30,2,30,0">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <StackPanel Grid.Row="0" Margin="0,0,0,18">
+                        <TextBlock Text="{Binding StepIndicator}"
+                                   Style="{StaticResource InstallerEyebrow}"
+                                   Margin="0,0,0,7" />
+                        <TextBlock Text="{Binding CurrentStepTitle}"
+                                   Style="{StaticResource InstallerTitle}" />
+                    </StackPanel>
+
+                    <Grid Grid.Row="1">
+                        <!-- Get started -->
+                        <StackPanel Visibility="{Binding StepIndex, Converter={StaticResource IntEquals}, ConverterParameter=0}">
+                            <TextBlock Style="{StaticResource InstallerSubtitle}"
+                                       Margin="0,0,0,16"
+                                       Text="Install Lockwell for the first time, or update an existing install to the latest release." />
+                            <Button Style="{StaticResource InstallerOptionButton}"
+                                    Click="ChooseInstall_Click">
+                                <StackPanel>
+                                    <TextBlock Text="Install"
+                                               Foreground="{StaticResource InstallerText}"
+                                               FontSize="14"
+                                               FontWeight="SemiBold"
+                                               Margin="0,0,0,4" />
+                                    <TextBlock Text="Download and set up Lockwell on this PC."
+                                               Style="{StaticResource InstallerSubtitle}"
+                                               Margin="0" />
+                                </StackPanel>
+                            </Button>
+                            <Button Style="{StaticResource InstallerOptionButton}"
+                                    IsEnabled="{Binding HasExistingInstall}"
+                                    Click="ChoosePatch_Click">
+                                <StackPanel>
+                                    <TextBlock Text="Update"
+                                               Foreground="{StaticResource InstallerText}"
+                                               FontSize="14"
+                                               FontWeight="SemiBold"
+                                               Margin="0,0,0,4" />
+                                    <TextBlock Text="Move your existing install up to the newest release."
+                                               Style="{StaticResource InstallerSubtitle}"
+                                               Margin="0" />
+                                </StackPanel>
+                            </Button>
+                            <StackPanel Margin="0,8,0,0">
+                                <TextBlock Text="{Binding DetectedInstallSummary}"
+                                           Style="{StaticResource InstallerCaption}" />
+                                <TextBlock Text="{Binding ReleaseSummary, StringFormat=Latest release: {0}}"
+                                           Style="{StaticResource InstallerCaption}"
+                                           Margin="0,3,0,0" />
+                            </StackPanel>
+                        </StackPanel>
+
+                        <!-- Terms -->
+                        <Grid Visibility="{Binding StepIndex, Converter={StaticResource IntEquals}, ConverterParameter=1}">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="*" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <Border Grid.Row="0" Style="{StaticResource InstallerCard}" Margin="0,0,0,14">
+                                <ScrollViewer Style="{StaticResource InstallerScrollViewer}">
+                                    <TextBlock Text="{Binding TermsText}"
+                                               Foreground="{StaticResource InstallerMuted}"
+                                               FontSize="11.5"
+                                               LineHeight="17"
+                                               TextWrapping="Wrap"
+                                               Padding="0,0,8,0" />
+                                </ScrollViewer>
+                            </Border>
+                            <CheckBox Grid.Row="1"
+                                      Style="{StaticResource InstallerCheckBox}"
+                                      Margin="0,0,0,10"
+                                      Content="I accept the terms"
+                                      IsChecked="{Binding TermsAccepted, Mode=TwoWay}" />
+                        </Grid>
+
+                        <!-- Install location -->
+                        <StackPanel Visibility="{Binding StepIndex, Converter={StaticResource IntEquals}, ConverterParameter=2}">
+                            <TextBlock Style="{StaticResource InstallerSubtitle}"
+                                       Margin="0,0,0,18"
+                                       Text="Lockwell installs to Program Files by default. Your vault is stored separately, under your own user folder, and is not touched by setup." />
+                            <TextBlock Text="Destination folder" Style="{StaticResource InstallerSectionLabel}" />
+                            <DockPanel Margin="0,0,0,10">
+                                <Button DockPanel.Dock="Right"
+                                        Content="Browse"
+                                        Style="{StaticResource InstallerGhostButton}"
+                                        MinWidth="82"
+                                        Margin="10,0,0,0"
+                                        Click="BrowsePath_Click" />
+                                <TextBox Text="{Binding InstallPath, UpdateSourceTrigger=PropertyChanged}"
+                                         Style="{StaticResource InstallerTextBox}"
+                                         VerticalAlignment="Center" />
+                            </DockPanel>
+                            <TextBlock Foreground="{StaticResource InstallerWarning}"
+                                       FontSize="11.5"
+                                       TextWrapping="Wrap"
+                                       Text="There is already an installation here. It will be upgraded in place."
+                                       Visibility="{Binding PathExistsWarning, Converter={StaticResource BoolToVis}}" />
+                        </StackPanel>
+
+                        <!-- Shortcuts -->
+                        <StackPanel Visibility="{Binding StepIndex, Converter={StaticResource IntEquals}, ConverterParameter=3}">
+                            <TextBlock Style="{StaticResource InstallerSubtitle}"
+                                       Margin="0,0,0,18"
+                                       Text="Choose how you want to launch Lockwell." />
+                            <CheckBox Style="{StaticResource InstallerCheckBox}"
+                                      Content="Desktop shortcut"
+                                      IsChecked="{Binding CreateDesktopShortcut, Mode=TwoWay}" />
+                            <CheckBox Style="{StaticResource InstallerCheckBox}"
+                                      Content="Start Menu shortcut"
+                                      IsChecked="{Binding CreateStartMenuShortcut, Mode=TwoWay}" />
+                        </StackPanel>
+
+                        <!-- Review -->
+                        <StackPanel Visibility="{Binding StepIndex, Converter={StaticResource IntEquals}, ConverterParameter=4}">
+                            <TextBlock Style="{StaticResource InstallerSubtitle}"
+                                       Margin="0,0,0,16"
+                                       Text="Setup verifies the signature on the release before it writes anything." />
+                            <Border Style="{StaticResource InstallerReviewRow}">
+                                <DockPanel LastChildFill="True">
+                                    <TextBlock DockPanel.Dock="Left" Text="Release" Foreground="{StaticResource InstallerFaint}" Width="104" FontSize="12" />
+                                    <TextBlock Text="{Binding ReviewRelease}" Foreground="{StaticResource InstallerText}" FontSize="12" TextWrapping="Wrap" />
+                                </DockPanel>
+                            </Border>
+                            <Border Style="{StaticResource InstallerReviewRow}">
+                                <DockPanel LastChildFill="True">
+                                    <TextBlock DockPanel.Dock="Left" Text="Install to" Foreground="{StaticResource InstallerFaint}" Width="104" FontSize="12" />
+                                    <TextBlock Text="{Binding ReviewInstallPath}" Foreground="{StaticResource InstallerText}" FontSize="12" TextWrapping="Wrap" />
+                                </DockPanel>
+                            </Border>
+                            <Border Style="{StaticResource InstallerReviewRow}">
+                                <DockPanel LastChildFill="True">
+                                    <TextBlock DockPanel.Dock="Left" Text="Desktop" Foreground="{StaticResource InstallerFaint}" Width="104" FontSize="12" />
+                                    <TextBlock Text="{Binding ReviewDesktopShortcut}" Foreground="{StaticResource InstallerText}" FontSize="12" />
+                                </DockPanel>
+                            </Border>
+                            <Border Style="{StaticResource InstallerReviewRow}">
+                                <DockPanel LastChildFill="True">
+                                    <TextBlock DockPanel.Dock="Left" Text="Start Menu" Foreground="{StaticResource InstallerFaint}" Width="104" FontSize="12" />
+                                    <TextBlock Text="{Binding ReviewStartMenuShortcut}" Foreground="{StaticResource InstallerText}" FontSize="12" />
+                                </DockPanel>
+                            </Border>
+                        </StackPanel>
+
+                        <!-- Install / update progress -->
+                        <StackPanel Visibility="{Binding StepIndex, Converter={StaticResource IntEquals}, ConverterParameter=5}"
+                                    VerticalAlignment="Top">
+                            <TextBlock Text="{Binding ProgressTitle}"
+                                       Style="{StaticResource InstallerTitle}"
+                                       FontSize="17"
+                                       Margin="0,0,0,8" />
+                            <TextBlock Text="{Binding ProgressSubtitle}"
+                                       Style="{StaticResource InstallerSubtitle}"
+                                       Margin="0,0,0,18" />
+                            <ProgressBar Style="{StaticResource InstallerProgressBar}"
+                                         Minimum="0"
+                                         Maximum="100"
+                                         Value="{Binding Progress, Mode=OneWay}"
+                                         Margin="0,0,0,12" />
+                            <TextBlock Text="{Binding StatusText}"
+                                       Foreground="{StaticResource InstallerMuted}"
+                                       FontSize="11.5"
+                                       TextWrapping="Wrap"
+                                       MinHeight="18" />
+                        </StackPanel>
+                    </Grid>
+                </Grid>
+
+                <!-- Footer -->
+                <Border Grid.Row="2"
+                        Padding="30,16,30,20"
+                        BorderBrush="{StaticResource InstallerStroke}"
+                        BorderThickness="0,1,0,0">
+                    <DockPanel>
+                        <Button Content="Cancel"
+                                Style="{StaticResource InstallerGhostButton}"
+                                DockPanel.Dock="Left"
+                                Visibility="{Binding ShowCancelButton, Converter={StaticResource BoolToVis}}"
+                                Click="Cancel_Click" />
+                        <StackPanel Orientation="Horizontal"
+                                    HorizontalAlignment="Right"
+                                    DockPanel.Dock="Right">
+                            <Button Content="Back"
+                                    Style="{StaticResource InstallerGhostButton}"
+                                    Margin="0,0,10,0"
+                                    Visibility="{Binding CanGoBack, Converter={StaticResource BoolToVis}}"
+                                    Click="Back_Click" />
+                            <Button Content="Next"
+                                    Style="{StaticResource InstallerPrimaryButton}"
+                                    Margin="0,0,10,0"
+                                    IsEnabled="{Binding CanGoNext}"
+                                    Visibility="{Binding ShowNextButton, Converter={StaticResource BoolToVis}}"
+                                    Click="Next_Click" />
+                            <Button Content="Install"
+                                    Style="{StaticResource InstallerPrimaryButton}"
+                                    Margin="0,0,10,0"
+                                    Visibility="{Binding ShowInstallButton, Converter={StaticResource BoolToVis}}"
+                                    Click="Install_Click" />
+                            <Button Content="Retry"
+                                    Style="{StaticResource InstallerGhostButton}"
+                                    Margin="0,0,10,0"
+                                    Visibility="{Binding ShowRetryButton, Converter={StaticResource BoolToVis}}"
+                                    Click="Retry_Click" />
+                            <Button Content="Close"
+                                    Style="{StaticResource InstallerGhostButton}"
+                                    Margin="0,0,10,0"
+                                    Visibility="{Binding ShowFinishButton, Converter={StaticResource BoolToVis}}"
+                                    Click="Finish_Click" />
+                            <Button Content="Run Lockwell"
+                                    Style="{StaticResource InstallerPrimaryButton}"
+                                    MinWidth="118"
+                                    Visibility="{Binding ShowRunButton, Converter={StaticResource BoolToVis}}"
+                                    Click="RunProgram_Click" />
+                        </StackPanel>
+                    </DockPanel>
+                </Border>
+            </Grid>
+        </Grid>
+    </Border>
+</Window>

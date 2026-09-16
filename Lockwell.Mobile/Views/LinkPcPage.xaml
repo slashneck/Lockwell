@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="Lockwell.Mobile.Views.LinkPcPage"
+             BackgroundColor="{StaticResource Bg0}"
+             NavigationPage.HasNavigationBar="False">
+
+    <Grid RowDefinitions="Auto,*">
+
+        <!-- Header -->
+        <Grid Grid.Row="0" Padding="20,52,20,10" ColumnDefinitions="Auto,*">
+            <Button Grid.Column="0" Text="&#x2190;" FontSize="22"
+                    BackgroundColor="Transparent" TextColor="{StaticResource Muted}"
+                    WidthRequest="44" HeightRequest="44" Padding="0"
+                    Clicked="OnBackClicked" />
+            <Label Grid.Column="1" Text="Link a PC" FontSize="19" FontAttributes="Bold"
+                   TextColor="{StaticResource TextColor}" VerticalOptions="Center" />
+        </Grid>
+
+        <ScrollView Grid.Row="1">
+            <VerticalStackLayout Padding="20,10,20,40" Spacing="0">
+
+                <!-- Step 1: pick the PC. Found automatically; typing is the fallback. -->
+                <Label Text="STEP 1 — PICK YOUR PC" Style="{StaticResource Overline}" />
+                <Label Text="On your PC, open Lockwell, go to Devices and choose Link a device. It will appear here by itself."
+                       Style="{StaticResource Caption}" Margin="0,6,0,10" />
+
+                <VerticalStackLayout x:Name="FoundList" Spacing="8" />
+
+                <Grid ColumnDefinitions="Auto,*" Margin="0,10,0,0" ColumnSpacing="10">
+                    <ActivityIndicator x:Name="SearchSpinner" Grid.Column="0"
+                                       IsRunning="True" WidthRequest="18" HeightRequest="18"
+                                       Color="{StaticResource Accent}" VerticalOptions="Center" />
+                    <Label x:Name="SearchStatus" Grid.Column="1" Text="Looking for your PC..."
+                           Style="{StaticResource Caption}" VerticalOptions="Center" />
+                </Grid>
+
+                <Button x:Name="SearchAgainButton" Text="Search again"
+                        Style="{StaticResource GhostButton}" HeightRequest="40"
+                        Margin="0,10,0,0" IsVisible="False" Clicked="OnSearchAgainClicked" />
+
+                <!-- The cable route, for no Wi-Fi or a network that isolates devices. -->
+                <Border Style="{StaticResource Card}" Padding="14,12" Margin="0,10,0,0">
+                    <VerticalStackLayout Spacing="4">
+                        <Label Text="No Wi-Fi? Use the cable." Style="{StaticResource Body}"
+                               FontAttributes="Bold" FontSize="13" />
+                        <Label Text="Plug this phone into the PC, then turn on USB tethering in Android settings. Lockwell links over the cable exactly the same way, with no Wi-Fi involved, and your PC will appear in the list above."
+                               Style="{StaticResource Caption}" FontSize="11" />
+                    </VerticalStackLayout>
+                </Border>
+
+                <!-- Typing an address by hand, for networks that block the broadcast. -->
+                <Button x:Name="ManualToggle" Text="Enter the address myself"
+                        Style="{StaticResource GhostButton}" HeightRequest="40"
+                        Margin="0,10,0,0" Clicked="OnManualToggleClicked" />
+
+                <Border x:Name="ManualField" Style="{StaticResource InputField}"
+                        Margin="0,10,0,0" IsVisible="False">
+                    <Entry x:Name="AddressEntry" Style="{StaticResource InputEntry}"
+                           Placeholder="192.168.0.10"
+                           Keyboard="Url" />
+                </Border>
+
+                <!-- Step 2: code -->
+                <Label Text="STEP 2 — PAIRING CODE" Style="{StaticResource Overline}" Margin="0,22,0,0" />
+                <Label Text="Six digits, shown on the PC. Spaces do not matter."
+                       Style="{StaticResource Caption}" Margin="0,6,0,10" />
+
+                <Border Style="{StaticResource InputField}">
+                    <Entry x:Name="CodeEntry" Style="{StaticResource InputEntry}"
+                           Placeholder="123 456"
+                           Keyboard="Numeric"
+                           FontFamily="Monospace"
+                           FontSize="24"
+                           CharacterSpacing="4"
+                           HorizontalTextAlignment="Center"
+                           TextChanged="OnCodeChanged" />
+                </Border>
+
+                <Label x:Name="StatusLabel" Style="{StaticResource Caption}"
+                       FontSize="12" Margin="2,10,0,0" IsVisible="False" />
+
+                <Button x:Name="ConnectButton" Text="Connect"
+                        Style="{StaticResource AccentButton}"
+                        Margin="0,18,0,0" Clicked="OnConnectClicked" />
+
+                <!-- Step 3: confirm -->
+                <VerticalStackLayout x:Name="ConfirmPanel" IsVisible="False" Margin="0,26,0,0">
+                    <Label Text="STEP 3 — DO THE CODES MATCH?" Style="{StaticResource Overline}" />
+                    <Label Text="Your PC is showing six digits. They must match the ones below exactly. You only answer here: the PC does whatever you say."
+                           Style="{StaticResource Caption}" Margin="0,6,0,12" />
+
+                    <Border BackgroundColor="{StaticResource Bg1}"
+                            Stroke="{StaticResource Accent}" StrokeThickness="1"
+                            Padding="18,16" StrokeShape="RoundRectangle 12">
+                        <Label x:Name="FingerprintLabel"
+                               FontSize="22" FontAttributes="Bold"
+                               FontFamily="Monospace"
+                               TextColor="{StaticResource Accent}"
+                               HorizontalOptions="Center" />
+                    </Border>
+
+                    <Label x:Name="PcNameLabel" Style="{StaticResource Caption}"
+                           HorizontalOptions="Center" Margin="0,10,0,0" />
+
+                    <Button Text="Codes match, link it"
+                            Style="{StaticResource AccentButton}"
+                            Margin="0,18,0,0" Clicked="OnConfirmClicked" />
+                    <Button Text="They do not match"
+                            Style="{StaticResource GhostButton}"
+                            TextColor="{StaticResource Danger}"
+                            BorderColor="{StaticResource Danger}"
+                            Margin="0,8,0,0" Clicked="OnRejectClicked" />
+                </VerticalStackLayout>
+
+                <!-- Reassurance -->
+                <Border Style="{StaticResource Card}" Margin="0,28,0,0">
+                    <VerticalStackLayout Spacing="6">
+                        <Label Text="What linking does" Style="{StaticResource Body}" FontAttributes="Bold" />
+                        <Label Text="Your phone and PC talk directly over your local network. No server, no account, and nothing is uploaded. Linking on its own moves no data: you choose each item to send afterwards."
+                               Style="{StaticResource Caption}" FontSize="11" />
+                    </VerticalStackLayout>
+                </Border>
+
+            </VerticalStackLayout>
+        </ScrollView>
+    </Grid>
+
+</ContentPage>

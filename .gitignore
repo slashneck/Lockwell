@@ -1,0 +1,46 @@
+# Build output
+bin/
+obj/
+release/
+dist/
+*.user
+.vs/
+
+# Store listing images and the raw window captures they are built from.
+# Regenerate with: Lockwell.exe --store-shots <dir>
+store/
+
+# Obfuscar configs generated at release-publish time. They contain local paths.
+Lockwell/obfuscar.gen.xml
+Lockwell.Installer/obfuscar-installer.gen.xml
+
+# Release signing key material. The private key is held offline and must never
+# reach this repository, in any form, under any name.
+*.key
+*.pem
+*.pfx
+*.pkcs8
+*.snk
+*.jks
+*.keystore
+*private*key*
+release-signing*
+
+# Vault data. Nothing here should ever be near the repository, but a stray copy
+# in the working tree must not be committable by accident.
+*.lwv
+*.lwbak
+vault.lwv
+attachments/
+settings.json
+
+# Internal working notes. These carry local paths and machine details.
+docs/HANDOFF-*.md
+docs/CONTINUE-PROMPT.txt
+
+# Editor and agent scratch
+.cursor/
+.claude/
+*.tmp
+Thumbs.db
+desktop.ini

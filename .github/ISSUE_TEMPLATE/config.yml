@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/slashneck/Lockwell/security/advisories/new
+    about: Please report vulnerabilities privately, never in a public issue.
+  - name: Question or idea
+    url: https://github.com/slashneck/Lockwell/discussions
+    about: For anything that is not a bug report or a concrete feature request.

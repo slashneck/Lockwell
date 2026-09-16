@@ -1,0 +1,72 @@
+<UserControl x:Class="Lockwell.Views.CreateVaultView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid>
+        <!-- Step 1: create master password -->
+        <Border x:Name="FormPanel" Style="{StaticResource HeroCard}" Width="470"
+                VerticalAlignment="Center" HorizontalAlignment="Center" Padding="34">
+            <StackPanel>
+                <Border Width="56" Height="56" CornerRadius="16" HorizontalAlignment="Left"
+                        Background="{StaticResource GlassBg}" BorderBrush="{StaticResource GlassStroke}" BorderThickness="1"
+                        Effect="{StaticResource AccentGlowSoft}">
+                    <TextBlock Text="&#xE72E;" FontFamily="{StaticResource IconFont}" FontSize="24"
+                               Foreground="{StaticResource Accent}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </Border>
+                <TextBlock Text="Create your vault" Style="{StaticResource PageTitle}" Margin="0,16,0,0" />
+                <TextBlock Style="{StaticResource Caption}" Margin="0,6,0,0"
+                           Text="Your master password is the only key. It is never stored. If you lose it and have no recovery key, the data is gone for good." />
+
+                <TextBlock Text="Master password" Style="{StaticResource Caption}" Margin="0,22,0,6" />
+                <PasswordBox x:Name="Password" Style="{StaticResource InputPassword}" PasswordChanged="Password_Changed" />
+
+                <Border x:Name="StrengthTrack" Height="6" CornerRadius="3" Background="{StaticResource Bg3}" Margin="0,10,0,0">
+                    <Border x:Name="StrengthFill" HorizontalAlignment="Left" CornerRadius="3" Width="0"
+                            Background="{StaticResource Danger}" />
+                </Border>
+                <TextBlock x:Name="StrengthLabel" Style="{StaticResource Caption}" Margin="0,6,0,0" Text="" />
+
+                <TextBlock Text="Confirm password" Style="{StaticResource Caption}" Margin="0,16,0,6" />
+                <PasswordBox x:Name="Confirm" Style="{StaticResource InputPassword}" PasswordChanged="Password_Changed" />
+
+                <CheckBox x:Name="WantRecovery" Margin="0,18,0,0" IsChecked="True" Foreground="{StaticResource Text}"
+                          Content="Generate a recovery key (recommended)" />
+                <TextBlock Style="{StaticResource Caption}" Margin="24,4,0,0"
+                           Text="A one-time code you store offline. It can open the vault if you forget the password." />
+
+                <TextBlock x:Name="ErrorText" Style="{StaticResource Caption}" Foreground="{StaticResource Danger}"
+                           Margin="0,14,0,0" Visibility="Collapsed" />
+
+                <Button x:Name="CreateButton" Style="{StaticResource AccentButton}" Content="Create vault"
+                        Margin="0,22,0,0" IsEnabled="False" Click="Create_Click" />
+            </StackPanel>
+        </Border>
+
+        <!-- Step 2: reveal recovery key -->
+        <Border x:Name="RecoveryPanel" Style="{StaticResource HeroCard}" Width="530" Visibility="Collapsed"
+                VerticalAlignment="Center" HorizontalAlignment="Center" Padding="34">
+            <StackPanel>
+                <TextBlock Text="&#xE928;" FontFamily="{StaticResource IconFont}" FontSize="26"
+                           Foreground="{StaticResource Warning}" />
+                <TextBlock Text="Save your recovery key" Style="{StaticResource PageTitle}" Margin="0,12,0,0" />
+                <TextBlock Style="{StaticResource Caption}" Margin="0,6,0,0"
+                           Text="Write this down and keep it somewhere safe and offline. It is shown only once. Anyone with this key can open your vault." />
+
+                <Border Background="{StaticResource Bg0}" CornerRadius="10" Padding="16" Margin="0,18,0,0"
+                        BorderThickness="1" BorderBrush="{StaticResource Stroke}">
+                    <TextBlock x:Name="RecoveryKeyText" FontFamily="Consolas, monospace" FontSize="15"
+                               Foreground="{StaticResource Accent}" TextWrapping="Wrap" TextAlignment="Center" />
+                </Border>
+
+                <Button x:Name="CopyKeyButton" Style="{StaticResource GhostButton}" Content="Copy to clipboard"
+                        Margin="0,14,0,0" Click="CopyKey_Click" />
+
+                <CheckBox x:Name="SavedKey" Margin="0,18,0,0" Foreground="{StaticResource Text}"
+                          Checked="SavedKey_Changed" Unchecked="SavedKey_Changed"
+                          Content="I have saved my recovery key somewhere safe." />
+
+                <Button x:Name="EnterButton" Style="{StaticResource AccentButton}" Content="Enter vault"
+                        Margin="0,18,0,0" IsEnabled="False" Click="Enter_Click" />
+            </StackPanel>
+        </Border>
+    </Grid>
+</UserControl>

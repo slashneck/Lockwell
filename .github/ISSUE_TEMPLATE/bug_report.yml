@@ -1,0 +1,56 @@
+name: Bug report
+description: Something in Lockwell does not work the way it should.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before you start: never paste vault contents, passwords, recovery keys, or
+        screenshots that show them. Nothing in a bug report should be a secret.
+
+        If this is a security vulnerability, close this and use
+        [private reporting](https://github.com/slashneck/Lockwell/security/advisories/new)
+        instead.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you expected, and what you got instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open the vault
+        2. ...
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Lockwell version
+      description: Shown in Settings. For example, 1.2.0.
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: How did you install it?
+      options:
+        - LockwellSetup.exe from Releases
+        - Built from source
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: windows
+    attributes:
+      label: Windows version
+      placeholder: Windows 11 23H2
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else
+      description: Whether it happens every time, when it started, anything you tried.

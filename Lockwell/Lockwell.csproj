@@ -1,0 +1,86 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+
+    <!-- Windows 10 build 19041 (2004) unlocks the built-in Windows.Media.Transcoding
+         encoder used for audio/video compression. That is an OS API, not a third-party
+         package: nothing is downloaded and nothing leaves the machine. This matches the
+         minimum Windows version the README already states. -->
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
+
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+
+    <AssemblyName>Lockwell</AssemblyName>
+    <RootNamespace>Lockwell</RootNamespace>
+
+    <Version>1.2.0</Version>
+    <AssemblyVersion>1.2.0.0</AssemblyVersion>
+    <FileVersion>1.2.0.0</FileVersion>
+
+    <Description>Lockwell. Local-only encrypted vault. Your secrets never leave your PC.</Description>
+    <Company>Lockwell</Company>
+    <Product>Lockwell</Product>
+    <Copyright>Copyright 2026 Lockwell</Copyright>
+    <PackageLicenseExpression>GPL-3.0-or-later</PackageLicenseExpression>
+
+    <ApplicationIcon>Assets\lockwell.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+
+    <!-- Absolute source paths get baked into an assembly unless they are mapped away.
+         On a public build that is a privacy leak: it publishes the account name and
+         folder layout of whoever compiled it. Assert-ReleasePackageClean.ps1 fails the
+         publish if any survives, but not emitting them in the first place is better. -->
+    <PathMap>$(MSBuildProjectDirectory)=Lockwell,$(MSBuildProjectDirectory)\..=.</PathMap>
+    <Deterministic>true</Deterministic>
+
+    <LockwellReleasePublish Condition="'$(LockwellReleasePublish)' == ''">false</LockwellReleasePublish>
+    <LockwellObfuscationProfile Condition="'$(LockwellObfuscationProfile)' == ''">Standard</LockwellObfuscationProfile>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <DebugType>None</DebugType>
+    <DebugSymbols>false</DebugSymbols>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Crypto lives in Lockwell.Core so the Android app runs the identical code. -->
+    <ProjectReference Include="..\Lockwell.Core\Lockwell.Core.csproj" />
+
+    <PackageReference Include="Obfuscar" Version="2.2.49">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <GeneratePathProperty>true</GeneratePathProperty>
+    </PackageReference>
+
+    <PackageReference Include="WpfAnimatedGif" Version="2.0.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="Assets\lockwell.ico">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+
+    <!-- The GPL asks that the licence travel with the binary, and the third-party
+         notices have to as well. Shipping them means an installed copy is complete on
+         its own, without having to go back to the repository for them. -->
+    <Content Include="..\LICENSE" Link="LICENSE.txt">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\THIRD-PARTY-NOTICES.md" Link="THIRD-PARTY-NOTICES.md">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+  <Target Name="ObfuscateLockwellForReleaseOnly" AfterTargets="AfterBuild" Condition="'$(LockwellReleasePublish)' == 'true'">
+    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(ProjectDir)..\build-tools\obfuscar-gen.ps1&quot; -InPath &quot;$(TargetDir).&quot; -OutPath &quot;$(TargetDir)obf_out&quot; -OutConfig &quot;$(ProjectDir)obfuscar.gen.xml&quot; -Profile &quot;$(LockwellObfuscationProfile)&quot;" />
+    <Exec Command="&quot;$(Obfuscar)&quot; &quot;$(ProjectDir)obfuscar.gen.xml&quot;" WorkingDirectory="$(TargetDir)" />
+    <Copy SourceFiles="$(TargetDir)obf_out\Lockwell.dll" DestinationFiles="$(TargetDir)Lockwell.dll" Condition="Exists('$(TargetDir)obf_out\Lockwell.dll')" />
+    <RemoveDir Directories="$(TargetDir)obf_out" Condition="Exists('$(TargetDir)obf_out')" />
+  </Target>
+
+</Project>

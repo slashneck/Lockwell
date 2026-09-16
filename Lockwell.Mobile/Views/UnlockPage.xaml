@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="Lockwell.Mobile.Views.UnlockPage"
+             BackgroundColor="{StaticResource Bg0}"
+             NavigationPage.HasNavigationBar="False">
+
+    <ScrollView>
+        <VerticalStackLayout Padding="24,60,24,40" Spacing="0">
+
+            <Border BackgroundColor="{StaticResource Bg2}"
+                    Stroke="{StaticResource Stroke}" StrokeThickness="1"
+                    HorizontalOptions="Center" WidthRequest="72" HeightRequest="72"
+                    StrokeShape="RoundRectangle 22">
+                <Label x:Name="VaultGlyph" Text="&#x1F512;" FontSize="32"
+                       HorizontalOptions="Center" VerticalOptions="Center" />
+            </Border>
+
+            <Label x:Name="VaultName" Style="{StaticResource H1}"
+                   HorizontalOptions="Center" Margin="0,18,0,0" />
+            <Label Text="Locked" Style="{StaticResource Caption}"
+                   HorizontalOptions="Center" Margin="0,4,0,0" />
+
+            <Label Text="PASSWORD" Style="{StaticResource Overline}" Margin="2,34,0,8" />
+            <Border Style="{StaticResource InputField}">
+                <Entry x:Name="PasswordEntry" Style="{StaticResource InputEntry}"
+                       IsPassword="True" Placeholder="Your vault password"
+                       Completed="OnUnlockClicked" />
+            </Border>
+
+            <Label x:Name="ErrorLabel" Style="{StaticResource Caption}"
+                   TextColor="{StaticResource Danger}" FontSize="12"
+                   IsVisible="False" Margin="2,8,0,0" />
+
+            <Button x:Name="UnlockButton" Text="Unlock"
+                    Style="{StaticResource AccentButton}"
+                    Margin="0,16,0,0" Clicked="OnUnlockClicked" />
+
+            <Button x:Name="BiometricButton" Text="Use fingerprint or face"
+                    Style="{StaticResource GhostButton}"
+                    Margin="0,10,0,0" IsVisible="False"
+                    Clicked="OnBiometricClicked" />
+
+            <Button Text="Back to vaults"
+                    Style="{StaticResource GhostButton}"
+                    Margin="0,10,0,0" Clicked="OnBackClicked" />
+
+        </VerticalStackLayout>
+    </ScrollView>
+
+</ContentPage>
