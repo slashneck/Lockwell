@@ -33,6 +33,15 @@ All notable changes to Lockwell. Newest first.
   of your data exist. Only the vault's own files are removed; settings and other profiles
   in the same folder are left alone.
 
+### Fixed
+
+- **Setup could install an older version over a newer one.** Its update path took
+  whatever the releases page called "latest" and installed it without ever checking what
+  was already on the machine, so a build newer than the published one would be silently
+  replaced by the older public one, taking its features with it. It now refuses to go
+  backwards and says so. Reinstalling the same version over a damaged install still
+  works.
+
 ## 1.3.0 - 2026-10-14
 
 ### Media vault

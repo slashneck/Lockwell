@@ -1,4 +1,4 @@
-// Lockwell - local-only encrypted vault
+﻿// Lockwell - local-only encrypted vault
 // Copyright (C) 2026 Lockwell
 //
 // This program is free software: you can redistribute it and/or modify it under
@@ -60,6 +60,27 @@ internal static class UpdateFlow
             progress.Report(("Checking for the latest release…", 0.2));
             var release = await GitHubReleaseClient.CheckLatestReleaseAsync(ct).ConfigureAwait(true)
                 ?? throw new InvalidOperationException("Could not reach the update server or no release package was found.");
+
+            // Never walk an install backwards.
+            //
+            // This path takes whatever the releases page currently calls "latest" and
+            // installs it, and until now it did so without ever looking at what was
+            // already on the machine. Anyone running a build newer than the published
+            // one -- a local build, a test build, a release that was later pulled --
+            // would have it silently replaced by the older public one, losing whatever
+            // it contained. An update that removes features is not an update.
+            //
+            // Equal versions are still allowed, so reinstalling over a damaged install
+            // keeps working. Only going backwards is refused.
+            Version? installed = ReadInstalledAppVersion(installDir);
+            if (installed is not null && release.LatestVersion < installed)
+            {
+                throw new InvalidOperationException(
+                    $"The installed version ({installed.ToString(3)}) is newer than the "
+                    + $"latest published release ({release.LatestVersion.ToString(3)}). "
+                    + "Nothing was changed. Installing it would replace your copy with an "
+                    + "older one.");
+            }
 
             targetVersion = release.LatestVersion;
             tag = release.TagName;
@@ -153,6 +174,29 @@ internal static class UpdateFlow
         if (!verdict.IsTrusted)
         {
             throw new InvalidOperationException(verdict.Explain());
+        }
+    }
+
+    /// <summary>
+    /// The version of the Lockwell actually installed, read from the executable rather
+    /// than from the registry, because the registry entry records what an installer
+    /// believed it wrote and the file records what is really there.
+    /// </summary>
+    private static Version? ReadInstalledAppVersion(string? installDir)
+    {
+        if (string.IsNullOrWhiteSpace(installDir)) return null;
+
+        try
+        {
+            string exe = Path.Combine(installDir, "Lockwell.exe");
+            if (!File.Exists(exe)) return null;
+
+            var info = System.Diagnostics.FileVersionInfo.GetVersionInfo(exe);
+            return Version.TryParse(info.FileVersion, out var parsed) ? parsed : null;
+        }
+        catch (Exception)
+        {
+            return null;
         }
     }
 
