@@ -1,4 +1,4 @@
-// Lockwell - local-only encrypted vault
+﻿// Lockwell - local-only encrypted vault
 // Copyright (C) 2026 Lockwell
 //
 // This program is free software: you can redistribute it and/or modify it under
@@ -40,6 +40,7 @@ await DiscoveryChecks.RunAsync();
 ResourceChecks.Run();
 EffectChecks.Run();
 UpdateChecks.Run();
+RelocationChecks.Run();
 
 Console.WriteLine();
 if (Check.Failures == 0)

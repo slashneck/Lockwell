@@ -175,6 +175,11 @@ internal static class StoreShots
 
         shell.AutomationSection("Media vault");
         await Settle(700);
+
+        // The folder grid itself, which was never captured even though it is the screen
+        // the media vault actually opens on and the one carrying the per-folder actions.
+        captures["03a-folders"] = Capture(window);
+
         shell.AutomationOpenMediaFolder("Trip photos");
         await Settle(1600); // thumbnails decode off-thread
         captures["03-media"] = Capture(window);

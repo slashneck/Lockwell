@@ -1971,12 +1971,17 @@ public partial class VaultShellView : UserControl
         bool atRoot = _currentMediaFolderId is null;
         if (!searching)
         {
-            MediaFolderEditButton.Visibility = atRoot ? Visibility.Collapsed : Visibility.Visible;
+            var folderButtons = atRoot ? Visibility.Collapsed : Visibility.Visible;
+            MediaFolderEditButton.Visibility = folderButtons;
+            MediaFolderExportButton.Visibility = folderButtons;
+            MediaFolderDeleteButton.Visibility = folderButtons;
             RefreshMediaBreadcrumb();
         }
         else
         {
             MediaFolderEditButton.Visibility = Visibility.Collapsed;
+            MediaFolderExportButton.Visibility = Visibility.Collapsed;
+            MediaFolderDeleteButton.Visibility = Visibility.Collapsed;
             MediaBreadcrumbHost.Children.Clear();
             MediaBreadcrumbHost.Visibility = Visibility.Visible;
             MediaBreadcrumbHost.Children.Add(new TextBlock
@@ -2221,7 +2226,22 @@ public partial class VaultShellView : UserControl
             BeginCompressFolder(folder);
         };
 
+        var exportBtn = new Button
+        {
+            Style = (Style)FindResource("IconButton"),
+            Content = "",
+            FontSize = 13,
+            ToolTip = "Export this folder out of the vault",
+            Opacity = 0.85,
+        };
+        exportBtn.Click += (_, e) =>
+        {
+            e.Handled = true;
+            ExportMediaFolder(folder);
+        };
+
         actions.Children.Add(editBtn);
+        actions.Children.Add(exportBtn);
         actions.Children.Add(compressFolderBtn);
         actions.Children.Add(deleteBtn);
         grid.Children.Add(actions);
@@ -3697,22 +3717,11 @@ public partial class VaultShellView : UserControl
         var folder = _vault.Data.MediaFolders.FirstOrDefault(f => f.Id == _viewerFolderId);
         if (folder is null) return;
 
-        var dlg = new OpenFolderDialog { Title = "Choose where to save the folder" };
-        if (dlg.ShowDialog() != true) return;
-
-        try
-        {
-            int exported = ExportMediaFolderToDisk(folder, dlg.FolderName);
-            MessageBox.Show(
-                exported == 1
-                    ? "Exported 1 file. Remember it is now unprotected on disk."
-                    : $"Exported {exported} files. Remember they are now unprotected on disk.",
-                "Lockwell");
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show("Could not export folder: " + ex.Message, "Lockwell");
-        }
+        // Same flow the gallery uses. There used to be a second, simpler copy of the
+        // export here that ran on the UI thread with no progress and no failure
+        // reporting, so a large folder looked like the app had hung. One export path.
+        CloseViewer_Click(sender, e);
+        ExportMediaFolder(folder);
     }
 
     private void ExportAttachmentToDisk(AttachmentRef att)
@@ -3733,57 +3742,6 @@ public partial class VaultShellView : UserControl
         {
             MessageBox.Show("Could not save file: " + ex.Message, "Lockwell");
         }
-    }
-
-    private int ExportMediaFolderToDisk(MediaFolder folder, string destinationRoot)
-    {
-        string safeName = SanitizePathName(folder.Name);
-        string targetDir = UniqueDirectoryPath(destinationRoot, safeName);
-        Directory.CreateDirectory(targetDir);
-
-        int exported = 0;
-        foreach (var entry in _vault.Data.Entries.Where(e => e.MediaFolderId == folder.Id))
-            exported += ExportEntryToDirectory(entry, targetDir);
-
-        foreach (var sub in _vault.Data.MediaFolders.Where(f => f.ParentFolderId == folder.Id))
-            exported += ExportMediaFolderToDisk(sub, targetDir);
-
-        return exported;
-    }
-
-    private int ExportEntryToDirectory(VaultEntry entry, string directory)
-    {
-        var att = entry.Attachments.FirstOrDefault();
-        if (att is null) return 0;
-
-        string path = UniqueFilePath(directory, att.FileName);
-        byte[] data = _vault.ReadAttachment(att);
-        File.WriteAllBytes(path, data);
-        Array.Clear(data, 0, data.Length);
-        return 1;
-    }
-
-    private static string SanitizePathName(string name)
-    {
-        foreach (char c in Path.GetInvalidFileNameChars())
-            name = name.Replace(c, '_');
-        return string.IsNullOrWhiteSpace(name) ? "Folder" : name.Trim();
-    }
-
-    private static string UniqueFilePath(string directory, string fileName)
-    {
-        string path = Path.Combine(directory, fileName);
-        if (!File.Exists(path)) return path;
-
-        string stem = Path.GetFileNameWithoutExtension(fileName);
-        string ext = Path.GetExtension(fileName);
-        for (int i = 2; i < 1000; i++)
-        {
-            path = Path.Combine(directory, $"{stem} ({i}){ext}");
-            if (!File.Exists(path)) return path;
-        }
-
-        return Path.Combine(directory, Guid.NewGuid().ToString("N") + ext);
     }
 
     private static string UniqueDirectoryPath(string parent, string folderName)
@@ -4203,6 +4161,8 @@ public partial class VaultShellView : UserControl
             _onSwitchProfile();
         };
         OverlayBody.Children.Add(switchProfileBtn);
+
+        AddVaultLocationSettings();
 
         OverlayBody.Children.Add(new Border { Height = 1, Background = (Brush)FindResource("Stroke"), Margin = new Thickness(0, 18, 0, 14) });
         OverlayBody.Children.Add(new TextBlock { Text = "Master password", Style = (Style)FindResource("H2") });

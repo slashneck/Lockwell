@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
@@ -17,9 +17,9 @@
     <AssemblyName>Lockwell</AssemblyName>
     <RootNamespace>Lockwell</RootNamespace>
 
-    <Version>1.2.0</Version>
-    <AssemblyVersion>1.2.0.0</AssemblyVersion>
-    <FileVersion>1.2.0.0</FileVersion>
+    <Version>1.4.0</Version>
+    <AssemblyVersion>1.4.0.0</AssemblyVersion>
+    <FileVersion>1.4.0.0</FileVersion>
 
     <Description>Lockwell. Local-only encrypted vault. Your secrets never leave your PC.</Description>
     <Company>Lockwell</Company>

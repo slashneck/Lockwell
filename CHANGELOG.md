@@ -4,6 +4,65 @@ All notable changes to Lockwell. Newest first.
 
 ---
 
+## 1.4.0 - 2026-10-14
+
+### Vault location
+
+- **Move your vault to another drive.** Settings now has a Vault location section showing
+  where this vault lives and how big it is, with a button to move it somewhere else: a USB
+  stick, an external disk, or just a drive with room on it. Each profile can sit on a
+  different drive.
+
+  It is copied exactly as it is stored, still encrypted the whole way. Your master
+  password is not needed and is never asked for, because nothing is decrypted to move it.
+  A vault on a USB stick is no less protected than one on your internal drive.
+
+  The order is deliberate: copy, check the copy, switch over, and only then offer to
+  remove the original. If anything does not check out, nothing is switched and the vault
+  stays exactly where it was. Stopping part-way leaves the original untouched too.
+
+  The check compares every file's size and compares the vault file itself by hash, because
+  that is the one file where a single wrong byte would cost everything.
+
+- **It refuses the moves that would lose data**: onto itself, into a folder inside itself,
+  into a folder that contains it, or on top of a vault that is already there. Each refusal
+  says which one it is.
+
+- **Removing the old copy is a separate yes.** It defaults to No, and it says plainly that
+  the old copy still opens with the same password, so keeping it means two working copies
+  of your data exist. Only the vault's own files are removed; settings and other profiles
+  in the same folder are left alone.
+
+## 1.3.0 - 2026-10-14
+
+### Media vault
+
+- **Export a whole folder out of the vault.** Folders could be deleted but never taken
+  out, which made the vault somewhere files went in more easily than they came out. There
+  is now an export button on every folder tile and in the header while you are inside a
+  folder. Sub-folders keep their shape, empty ones included, and duplicate names are kept
+  rather than overwritten.
+
+  It shows progress and can be stopped part-way. A file it cannot read is reported at the
+  end instead of killing the whole run, because the one broken file is exactly the reason
+  to get the other nine hundred out while you still can.
+
+  The files come out **decrypted**, which is the only form another program can read. Every
+  step says so plainly. Once they are on disk they have no protection at all.
+
+- **Moving a folder somewhere else, in one go.** When an export finishes with every file
+  written and none failed, Lockwell counts the files on disk and then offers to remove the
+  folder from the vault. It only offers when the count checks out, it defaults to No, and
+  it says that the exported copy becomes your only copy.
+
+- **Delete a folder from inside it.** Previously you had to go back up to the folder's
+  tile to delete it.
+
+- **One export path instead of two.** The media viewer's "Download folder" used to run its
+  own simpler copy of the export, on the UI thread, with no progress and no failure
+  reporting, so a large folder looked like the app had frozen. It now runs the same flow
+  as everything else.
+
 ## 1.2.0 - 2026-09-16
 
 ### Lockwell is open source

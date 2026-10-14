@@ -712,6 +712,12 @@
                                 <Button x:Name="MediaFolderEditButton" Style="{StaticResource IconButton}" Content="&#xE70F;"
                                         FontSize="12" Margin="6,0,0,0" VerticalAlignment="Center" Visibility="Collapsed"
                                         ToolTip="Edit folder" Click="MediaFolderEditButton_Click" />
+                                <Button x:Name="MediaFolderExportButton" Style="{StaticResource IconButton}" Content="&#xE896;"
+                                        FontSize="12" Margin="2,0,0,0" VerticalAlignment="Center" Visibility="Collapsed"
+                                        ToolTip="Export this folder out of the vault" Click="MediaFolderExportButton_Click" />
+                                <Button x:Name="MediaFolderDeleteButton" Style="{StaticResource IconButton}" Content="&#xE74D;"
+                                        FontSize="12" Margin="2,0,0,0" VerticalAlignment="Center" Visibility="Collapsed"
+                                        ToolTip="Delete this folder and everything in it" Click="MediaFolderDeleteButton_Click" />
                             </StackPanel>
                         </StackPanel>
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">

@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <!--
     Shared between the Windows app and the Android companion.
@@ -13,9 +13,9 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>Lockwell</RootNamespace>
     <AssemblyName>Lockwell.Core</AssemblyName>
-    <Version>1.2.0</Version>
-    <AssemblyVersion>1.2.0.0</AssemblyVersion>
-    <FileVersion>1.2.0.0</FileVersion>
+    <Version>1.4.0</Version>
+    <AssemblyVersion>1.4.0.0</AssemblyVersion>
+    <FileVersion>1.4.0.0</FileVersion>
     <Company>Lockwell</Company>
     <Copyright>Copyright 2026 Lockwell</Copyright>
     <PackageLicenseExpression>GPL-3.0-or-later</PackageLicenseExpression>
