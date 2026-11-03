@@ -138,7 +138,7 @@
                     <StackPanel Grid.Row="3">
                         <TextBlock Text="Local-only encrypted vault."
                                    Style="{StaticResource InstallerCaption}" />
-                        <TextBlock Text="Your data never leaves this PC."
+                        <TextBlock Text="No account. No server."
                                    Style="{StaticResource InstallerCaption}"
                                    Margin="0,3,0,0" />
                     </StackPanel>

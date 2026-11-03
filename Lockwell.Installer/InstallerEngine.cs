@@ -30,12 +30,6 @@ internal static class InstallerEngine
     public static Task<GitHubReleaseClient.ReleaseCheckResult?> FetchLatestReleaseAsync(CancellationToken ct = default) =>
         GitHubReleaseClient.CheckLatestReleaseAsync(ct);
 
-    public static Task<string?> DownloadReleaseZipAsync(
-        string downloadUrl,
-        IProgress<double>? progress,
-        CancellationToken ct = default) =>
-        GitHubReleaseClient.DownloadReleaseZipAsync(downloadUrl, progress, ct);
-
     public static void ApplyShortcuts(InstallPlan plan)
     {
         var exe = Path.Combine(plan.InstallDirectory, InstallPaths.ExecutableFileName);

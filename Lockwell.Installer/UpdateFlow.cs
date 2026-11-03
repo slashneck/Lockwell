@@ -51,57 +51,35 @@ internal static class UpdateFlow
         await WaitForProcessExitAsync(request.WaitPid, ct).ConfigureAwait(true);
         EnsureLockwellNotRunning();
 
-        string? zipPath = request.ZipPath;
-        Version targetVersion = request.TargetVersion ?? GitHubReleaseClient.ReadAppVersion() ?? new Version(1, 0, 0);
+        VerifiedPackage package;
         string? tag = null;
 
-        if (string.IsNullOrWhiteSpace(zipPath) || !File.Exists(zipPath))
+        if (string.IsNullOrWhiteSpace(request.ZipPath) || !File.Exists(request.ZipPath))
         {
-            progress.Report(("Checking for the latest release…", 0.2));
-            var release = await GitHubReleaseClient.CheckLatestReleaseAsync(ct).ConfigureAwait(true)
-                ?? throw new InvalidOperationException("Could not reach the update server or no release package was found.");
-
-            // Never walk an install backwards.
-            //
-            // This path takes whatever the releases page currently calls "latest" and
-            // installs it, and until now it did so without ever looking at what was
-            // already on the machine. Anyone running a build newer than the published
-            // one -- a local build, a test build, a release that was later pulled --
-            // would have it silently replaced by the older public one, losing whatever
-            // it contained. An update that removes features is not an update.
-            //
-            // Equal versions are still allowed, so reinstalling over a damaged install
-            // keeps working. Only going backwards is refused.
-            Version? installed = ReadInstalledAppVersion(installDir);
-            if (installed is not null && release.LatestVersion < installed)
-            {
-                throw new InvalidOperationException(
-                    $"The installed version ({installed.ToString(3)}) is newer than the "
-                    + $"latest published release ({release.LatestVersion.ToString(3)}). "
-                    + "Nothing was changed. Installing it would replace your copy with an "
-                    + "older one.");
-            }
-
-            targetVersion = release.LatestVersion;
-            tag = release.TagName;
-
-            progress.Report(("Downloading update…", 0.25));
-            zipPath = await GitHubReleaseClient.DownloadReleaseZipAsync(
-                release.DownloadUrl,
-                new Progress<double>(p => progress.Report(("Downloading update…", 0.25 + (p / 100.0) * 0.45))),
+            // Setup's own Update button lands here with no files in hand. It used to fetch
+            // only the zip and then stop at the signature check, because nothing had
+            // fetched the manifest, so this route could never succeed.
+            progress.Report(("Downloading and checking the latest release...", 0.2));
+            package = await GitHubReleaseClient.DownloadVerifiedReleaseAsync(
+                new Progress<double>(p => progress.Report(("Downloading update...", 0.25 + (p / 100.0) * 0.45))),
                 ct).ConfigureAwait(true);
-
-            if (string.IsNullOrWhiteSpace(zipPath) || !File.Exists(zipPath))
-            {
-                throw new InvalidOperationException("Download failed.");
-            }
+            tag = package.Manifest.Tag;
+        }
+        else
+        {
+            progress.Report(("Verifying signature...", 0.72));
+            package = VerifyOrRefuse(request, request.ZipPath);
         }
 
-        progress.Report(("Verifying signature…", 0.72));
-        VerifyOrRefuse(request, zipPath);
+        GitHubReleaseClient.RefuseDowngrade(installDir, package);
 
-        progress.Report(("Installing files…", 0.78));
-        if (!GitHubReleaseClient.InstallReleaseZipToDirectory(zipPath, installDir))
+        // The signed manifest says which version this is. A version on the command line is
+        // not something an elevated process should take anyone's word for.
+        Version targetVersion = ReleaseManifest.ParseVersion(package.Manifest.Version)
+            ?? throw new InvalidOperationException("The release did not state a usable version.");
+
+        progress.Report(("Installing files...", 0.78));
+        if (!GitHubReleaseClient.InstallReleaseZipToDirectory(package, installDir))
         {
             throw new InvalidOperationException("Could not apply the update package.");
         }
@@ -112,7 +90,7 @@ internal static class UpdateFlow
 
         try
         {
-            File.Delete(zipPath);
+            File.Delete(package.ZipPath);
         }
         catch
         {
@@ -151,7 +129,7 @@ internal static class UpdateFlow
     /// install. That is deliberate: an updater that cannot tell a real release from a
     /// forged one is worse than no updater.
     /// </summary>
-    private static void VerifyOrRefuse(UpdateRequest request, string zipPath)
+    private static VerifiedPackage VerifyOrRefuse(UpdateRequest request, string zipPath)
     {
         if (string.IsNullOrWhiteSpace(request.ManifestPath) || string.IsNullOrWhiteSpace(request.SignaturePath))
         {
@@ -167,37 +145,10 @@ internal static class UpdateFlow
                 "The signed manifest for this update could not be found. Nothing was installed.");
         }
 
-        byte[] manifestBytes = File.ReadAllBytes(request.ManifestPath);
-        byte[] signature = File.ReadAllBytes(request.SignaturePath);
-
-        var verdict = ReleaseTrust.VerifyPackage(manifestBytes, signature, zipPath);
-        if (!verdict.IsTrusted)
-        {
-            throw new InvalidOperationException(verdict.Explain());
-        }
-    }
-
-    /// <summary>
-    /// The version of the Lockwell actually installed, read from the executable rather
-    /// than from the registry, because the registry entry records what an installer
-    /// believed it wrote and the file records what is really there.
-    /// </summary>
-    private static Version? ReadInstalledAppVersion(string? installDir)
-    {
-        if (string.IsNullOrWhiteSpace(installDir)) return null;
-
-        try
-        {
-            string exe = Path.Combine(installDir, "Lockwell.exe");
-            if (!File.Exists(exe)) return null;
-
-            var info = System.Diagnostics.FileVersionInfo.GetVersionInfo(exe);
-            return Version.TryParse(info.FileVersion, out var parsed) ? parsed : null;
-        }
-        catch (Exception)
-        {
-            return null;
-        }
+        return VerifiedPackage.Verify(
+            File.ReadAllBytes(request.ManifestPath),
+            File.ReadAllBytes(request.SignaturePath),
+            zipPath);
     }
 
     public static string? ResolveInstallDirectory()

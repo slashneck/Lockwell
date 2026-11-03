@@ -27,8 +27,9 @@ namespace Lockwell.Services;
 /// Finds out whether a newer Lockwell exists, and if the user asks for it, fetches and
 /// verifies the package before handing it to the installer to apply.
 ///
-/// This is the only code in the application that makes an outbound network request. Some
-/// deliberate decisions about what it does not do:
+/// This is the only code in the application that talks to the internet. Device linking uses
+/// the local network and lives elsewhere. Some deliberate decisions about what this does not
+/// do:
 ///
 /// - It sends no version number, no machine identifier, no vault information and no
 ///   telemetry of any kind. The User-Agent is the literal string "Lockwell", because

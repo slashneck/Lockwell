@@ -101,8 +101,23 @@ public static class VaultRelocation
         if (File.Exists(Path.Combine(destination, VaultFileName)))
             return "There is already a vault in that folder. Moving into it would put two vaults in the same place.";
 
+        // Leftovers from another vault would be merged into this one, and cleaning up a
+        // stopped move would then delete files this move never created.
+        if (VaultEntries.Any(e => Directory.Exists(Path.Combine(destination, e))))
+            return "That folder already holds vault files. Pick an empty folder.";
+
         return null;
     }
+
+    /// <summary>
+    /// The folder a move should land in, created fresh inside whatever was picked. Someone
+    /// choosing the root of a USB stick should get a tidy folder there, not vault files
+    /// loose beside their photos.
+    /// </summary>
+    public static string ResolveDestination(string pickedFolder) =>
+        FolderExporter.UniqueDirectory(pickedFolder, DestinationFolderName);
+
+    public const string DestinationFolderName = "Lockwell vault";
 
     /// <summary>List every file that has to travel, with the size it should arrive at.</summary>
     public static Plan Prepare(string sourceDir, string destinationDir)
@@ -205,46 +220,89 @@ public static class VaultRelocation
     }
 
     /// <summary>
-    /// Check what arrived. Returns a description of everything wrong, empty when the copy
-    /// is sound.
+    /// Check what arrived, by hash, for every file. Returns a description of everything
+    /// wrong, empty when the copy is sound.
     ///
-    /// Sizes are compared for every file, and the vault file itself is compared by hash.
-    /// Hashing gigabytes of attachments would double the time of a move for a guarantee
-    /// the filesystem already gives; the vault file is small and is the one file where a
-    /// single wrong byte costs everything, so it gets the stronger check.
+    /// Every file, because this copy may be about to become the only one, and cheap USB
+    /// sticks can return different bytes from the ones they accepted without any error.
+    /// It reads everything twice and takes as long as it takes.
     /// </summary>
-    public static List<string> Verify(Plan plan)
+    public static List<string> Verify(
+        Plan plan,
+        IProgress<OperationProgress>? progress = null,
+        CancellationToken token = default)
     {
         var problems = new List<string>();
+        int checkedFiles = 0;
 
         foreach (var file in plan.Files)
         {
+            token.ThrowIfCancellationRequested();
+
+            string from = Path.Combine(plan.Source, file.RelativePath);
             string to = Path.Combine(plan.Destination, file.RelativePath);
+            string label = file.RelativePath.Equals(VaultFileName, StringComparison.OrdinalIgnoreCase)
+                ? "the vault file"
+                : file.RelativePath;
+
+            progress?.Report(new OperationProgress
+            {
+                Title = "Checking the copy",
+                Detail = file.RelativePath,
+                Current = checkedFiles,
+                Total = plan.Files.Count,
+            });
+            checkedFiles++;
 
             if (!File.Exists(to))
             {
-                problems.Add($"{file.RelativePath} did not arrive");
+                problems.Add($"{label} did not arrive");
                 continue;
             }
 
             long landed = new FileInfo(to).Length;
             if (landed != file.Length)
-                problems.Add($"{file.RelativePath} is {landed} bytes, expected {file.Length}");
-        }
+            {
+                problems.Add($"{label} is {landed} bytes, expected {file.Length}");
+                continue;
+            }
 
-        string sourceVault = Path.Combine(plan.Source, VaultFileName);
-        string destVault = Path.Combine(plan.Destination, VaultFileName);
-
-        if (!File.Exists(destVault))
-        {
-            problems.Add("the vault file did not arrive");
-        }
-        else if (File.Exists(sourceVault) && !HashesMatch(sourceVault, destVault))
-        {
-            problems.Add("the vault file does not match the original");
+            if (!HashesMatch(from, to))
+                problems.Add($"{label} does not match the original");
         }
 
         return problems;
+    }
+
+    /// <summary>
+    /// Remove a copy this move created and has given up on. Only for a destination that
+    /// <see cref="Validate"/> accepted, which guarantees none of these were there before.
+    /// </summary>
+    public static void DeleteAbandonedCopy(Plan plan)
+    {
+        foreach (string name in VaultEntries)
+        {
+            string path = Path.Combine(plan.Destination, name);
+            try
+            {
+                if (File.Exists(path)) File.Delete(path);
+                else if (Directory.Exists(path)) Directory.Delete(path, recursive: true);
+            }
+            catch (Exception)
+            {
+                // Untidy, not dangerous. The original has not been touched.
+            }
+        }
+
+        try
+        {
+            if (Directory.Exists(plan.Destination) && !Directory.EnumerateFileSystemEntries(plan.Destination).Any())
+                Directory.Delete(plan.Destination);
+        }
+        catch (Exception)
+        {
+            // as above
+        }
     }
 
     /// <summary>
@@ -277,15 +335,10 @@ public static class VaultRelocation
 
     private static bool HashesMatch(string a, string b)
     {
-        using var sha = SHA256.Create();
-
         using var streamA = File.OpenRead(a);
-        byte[] hashA = sha.ComputeHash(streamA);
-
         using var streamB = File.OpenRead(b);
-        byte[] hashB = sha.ComputeHash(streamB);
-
-        return CryptographicOperations.FixedTimeEquals(hashA, hashB);
+        return CryptographicOperations.FixedTimeEquals(
+            SHA256.HashData(streamA), SHA256.HashData(streamB));
     }
 
     public static string Megabytes(long bytes) =>

@@ -28,6 +28,7 @@ public partial class MainWindow : Window
     private readonly ProfileManager _profiles;
     private VaultManager _vault;
     private readonly AutoLockService _autoLock;
+    private bool _lockWhenIdle;
 
     public MainWindow()
     {
@@ -46,7 +47,7 @@ public partial class MainWindow : Window
         _vault = _profiles.CreateActiveVaultManager();
 
         _autoLock = new AutoLockService(TimeSpan.FromMinutes(Math.Max(1, _settings.AutoLockMinutes)));
-        _autoLock.LockRequested += () => Dispatcher.Invoke(LockVault);
+        _autoLock.LockRequested += () => Dispatcher.Invoke(RequestLock);
 
         WindowWorkAreaHelper.Attach(this);
         Loaded += OnLoaded;
@@ -78,6 +79,41 @@ public partial class MainWindow : Window
 
     private void OnProfileSelected(VaultProfile profile)
     {
+        // A vault on an unplugged drive is not an empty profile. Falling through would offer
+        // to create a new vault in its place.
+        while (ProfileManager.IsVaultDisconnected(profile))
+        {
+            var answer = MessageBox.Show(
+                $"The vault for \"{profile.Name}\" is not available. It was last at:\n"
+                + $"{profile.VaultDir}\n\n"
+                + "If it is on a USB stick or external drive, plug it in and choose Yes to try "
+                + "again. Choose No to find its folder yourself, for instance if the drive "
+                + "came back under another letter.",
+                "Lockwell", MessageBoxButton.YesNoCancel, MessageBoxImage.Warning);
+
+            if (answer == MessageBoxResult.Cancel)
+            {
+                ShowGate();
+                return;
+            }
+
+            if (answer == MessageBoxResult.No)
+            {
+                var dlg = new Microsoft.Win32.OpenFolderDialog { Title = "Find the folder holding the vault" };
+                if (dlg.ShowDialog() == true)
+                {
+                    try
+                    {
+                        _profiles.RelinkVault(profile, dlg.FolderName);
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show(ex.Message, "Lockwell", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    }
+                }
+            }
+        }
+
         _profiles.SetActive(profile);
         _vault = new VaultManager(profile.VaultDir);
 
@@ -96,6 +132,7 @@ public partial class MainWindow : Window
         if (_vault.LastIntegrityReport is { Changed: true } report)
             ShowIntegrityRecoveryNotice(report);
 
+        _lockWhenIdle = false;
         SetHost(new VaultShellView(_vault, _settings, _profiles, LockVault, ApplySettings, ShowGate));
     }
 
@@ -127,6 +164,34 @@ public partial class MainWindow : Window
         Host.Opacity = 0;
         Anim.FadeIn(Host, 260);
         if (view is FrameworkElement fe) Anim.SlideFadeIn(fe, 300, 12, 40);
+    }
+
+    /// <summary>
+    /// A lock that was not the vault's own doing: the idle timer, minimising, the lock
+    /// button. An export or move can outlast the idle limit with nobody touching the mouse,
+    /// and locking under it would either fail it part-way or strand the app on the wrong
+    /// vault, so it waits for the work to finish.
+    /// </summary>
+    private void RequestLock()
+    {
+        if (Host.Content is VaultShellView { IsBusy: true } shell)
+        {
+            if (!_lockWhenIdle)
+            {
+                _lockWhenIdle = true;
+                shell.BusyEnded += LockAfterBusy;
+            }
+            return;
+        }
+
+        LockVault();
+    }
+
+    private void LockAfterBusy()
+    {
+        if (Host.Content is VaultShellView shell) shell.BusyEnded -= LockAfterBusy;
+        if (_lockWhenIdle && _vault.IsUnlocked) LockVault();
+        _lockWhenIdle = false;
     }
 
     private void LockVault()
@@ -169,7 +234,7 @@ public partial class MainWindow : Window
         base.OnClosed(e);
     }
 
-    private void LockNowButton_Click(object sender, RoutedEventArgs e) => LockVault();
+    private void LockNowButton_Click(object sender, RoutedEventArgs e) => RequestLock();
     private void MinButton_Click(object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
 
     private void MaxButton_Click(object sender, RoutedEventArgs e)
@@ -199,6 +264,6 @@ public partial class MainWindow : Window
             : new Thickness(1);
 
         if (WindowState == WindowState.Minimized && _vault.IsUnlocked && _settings.LockOnMinimize)
-            LockVault();
+            RequestLock();
     }
 }

@@ -93,11 +93,8 @@ public sealed class ProfileManager
             _settings.ActiveProfileId = _settings.Profiles[0].Id;
         _settings.Save();
 
-        if (deleteFiles && Directory.Exists(profile.VaultDir))
-        {
-            try { Directory.Delete(profile.VaultDir, recursive: true); }
-            catch { /* best effort */ }
-        }
+        if (deleteFiles)
+            DeleteVaultFiles(profile.VaultDir);
 
         return true;
     }
@@ -114,8 +111,59 @@ public sealed class ProfileManager
         _settings.Save();
     }
 
+    /// <summary>
+    /// Remove one vault's own files and nothing else.
+    ///
+    /// This used to delete the profile's whole folder. The first profile's folder is the
+    /// application data root, so deleting that profile also destroyed settings.json and
+    /// every other profile's vault stored underneath it.
+    /// </summary>
+    public static void DeleteVaultFiles(string vaultDir)
+    {
+        foreach (string name in VaultRelocation.VaultEntries.Append(VaultRelocation.VaultFileName + ".tmp"))
+        {
+            string path = Path.Combine(vaultDir, name);
+            try
+            {
+                if (File.Exists(path)) File.Delete(path);
+                else if (Directory.Exists(path)) Directory.Delete(path, recursive: true);
+            }
+            catch { /* best effort */ }
+        }
+
+        try
+        {
+            bool isAppRoot = VaultRelocation.Contains(vaultDir, AppRoot);
+            if (!isAppRoot && Directory.Exists(vaultDir) && !Directory.EnumerateFileSystemEntries(vaultDir).Any())
+                Directory.Delete(vaultDir);
+        }
+        catch { /* best effort */ }
+    }
+
     public static bool ProfileHasVault(VaultProfile profile) =>
         File.Exists(Path.Combine(profile.VaultDir, "vault.lwv"));
+
+    /// <summary>
+    /// True when a profile points outside Lockwell's own storage and its vault is not
+    /// there: usually a USB stick that is unplugged or came back under another drive letter.
+    ///
+    /// That is not an empty profile. Treating it as one would invite someone to create a new
+    /// vault in place of the one they cannot currently see.
+    /// </summary>
+    public static bool IsVaultDisconnected(VaultProfile profile) =>
+        !ProfileHasVault(profile)
+        && !string.IsNullOrWhiteSpace(profile.VaultDir)
+        && !VaultRelocation.Contains(AppRoot, profile.VaultDir);
+
+    /// <summary>Point a profile at a vault found somewhere else, such as a new drive letter.</summary>
+    public void RelinkVault(VaultProfile profile, string vaultDir)
+    {
+        if (!File.Exists(Path.Combine(vaultDir, "vault.lwv")))
+            throw new InvalidOperationException("There is no vault in that folder.");
+
+        profile.VaultDir = Path.GetFullPath(vaultDir);
+        _settings.Save();
+    }
 
     /// <summary>
     /// Reuse an empty profile when importing a backup, or create a new one.
@@ -126,13 +174,15 @@ public sealed class ProfileManager
         if (trimmed.Length == 0)
             throw new ArgumentException("Profile name is required.", nameof(name));
 
-        if (reuseIfEmpty is not null && !ProfileHasVault(reuseIfEmpty))
+        if (reuseIfEmpty is not null && !ProfileHasVault(reuseIfEmpty) && !IsVaultDisconnected(reuseIfEmpty))
         {
             RenameProfile(reuseIfEmpty, trimmed);
             return reuseIfEmpty;
         }
 
-        if (_settings.Profiles.Count == 1 && !ProfileHasVault(_settings.Profiles[0]))
+        if (_settings.Profiles.Count == 1
+            && !ProfileHasVault(_settings.Profiles[0])
+            && !IsVaultDisconnected(_settings.Profiles[0]))
         {
             RenameProfile(_settings.Profiles[0], trimmed);
             return _settings.Profiles[0];

@@ -41,6 +41,7 @@ ResourceChecks.Run();
 EffectChecks.Run();
 UpdateChecks.Run();
 RelocationChecks.Run();
+ExportChecks.Run();
 
 Console.WriteLine();
 if (Check.Failures == 0)

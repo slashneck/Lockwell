@@ -19,6 +19,7 @@ using System.Runtime.CompilerServices;
 using System.Windows;
 using Microsoft.Win32;
 using Lockwell.Installer.Services;
+using Lockwell.Update;
 
 namespace Lockwell.Installer;
 
@@ -35,7 +36,6 @@ internal sealed class InstallerViewModel : INotifyPropertyChanged
     private string _statusText = string.Empty;
     private double _progress;
     private string _releaseSummary = string.Empty;
-    private string? _pendingDownloadUrl;
     private Version? _pendingVersion;
     private string? _pendingTag;
 
@@ -326,7 +326,6 @@ internal sealed class InstallerViewModel : INotifyPropertyChanged
                 return;
             }
 
-            _pendingDownloadUrl = release.DownloadUrl;
             _pendingVersion = release.LatestVersion;
             _pendingTag = release.TagName;
             ReleaseSummary = $"{release.TagName} · v{release.LatestVersion}";
@@ -466,37 +465,26 @@ internal sealed class InstallerViewModel : INotifyPropertyChanged
 
         try
         {
-            if (string.IsNullOrWhiteSpace(_pendingDownloadUrl))
-            {
-                StatusText = "Checking for the latest release…";
-                var release = await InstallerEngine.FetchLatestReleaseAsync().ConfigureAwait(true);
-                if (release is null)
-                {
-                    throw new InvalidOperationException("Could not reach the update server or no release package was found.");
-                }
-
-                _pendingDownloadUrl = release.DownloadUrl;
-                _pendingVersion = release.LatestVersion;
-                _pendingTag = release.TagName;
-                OnPropertyChanged(nameof(ReviewRelease));
-            }
-
             var installDir = Path.GetFullPath(InstallPath.Trim());
-            Directory.CreateDirectory(installDir);
 
-            StatusText = "Downloading Lockwell…";
-            var zip = await InstallerEngine.DownloadReleaseZipAsync(
-                _pendingDownloadUrl!,
+            // Downloaded and verified as one step. There is no way to get a package to the
+            // extraction below without passing the signature check.
+            StatusText = "Downloading Lockwell and checking its signature...";
+            var package = await GitHubReleaseClient.DownloadVerifiedReleaseAsync(
                 new Progress<double>(p => Progress = p * 0.72)).ConfigureAwait(true);
 
-            if (string.IsNullOrWhiteSpace(zip) || !File.Exists(zip))
-            {
-                throw new InvalidOperationException("Download failed.");
-            }
+            // "Install" over an existing copy is an upgrade, so it obeys the same rule.
+            GitHubReleaseClient.RefuseDowngrade(installDir, package);
 
-            StatusText = "Installing files…";
+            _pendingTag = package.Manifest.Tag;
+            _pendingVersion = ReleaseManifest.ParseVersion(package.Manifest.Version);
+            OnPropertyChanged(nameof(ReviewRelease));
+
+            Directory.CreateDirectory(installDir);
+
+            StatusText = "Installing files...";
             Progress = 78;
-            if (!GitHubReleaseClient.InstallReleaseZipToDirectory(zip, installDir))
+            if (!GitHubReleaseClient.InstallReleaseZipToDirectory(package, installDir))
             {
                 throw new InvalidOperationException("Could not extract the release package.");
             }
@@ -509,7 +497,7 @@ internal sealed class InstallerViewModel : INotifyPropertyChanged
                 CreateStartMenuShortcut,
                 _pendingTag ?? "latest",
                 _pendingVersion ?? new Version(1, 0, 0),
-                _pendingDownloadUrl!);
+                package.ZipPath);
             InstallerEngine.ApplyShortcuts(plan);
 
             StatusText = "Registering with Windows…";
@@ -522,7 +510,7 @@ internal sealed class InstallerViewModel : INotifyPropertyChanged
 
             try
             {
-                File.Delete(zip);
+                File.Delete(package.ZipPath);
             }
             catch
             {

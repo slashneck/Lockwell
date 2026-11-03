@@ -25,6 +25,11 @@ public partial class VaultShellView
     private readonly object _vaultOpLock = new();
     private bool _busyOperation;
 
+    /// <summary>A long operation is running, and locking now would break it.</summary>
+    public bool IsBusy => _busyOperation;
+
+    public event Action? BusyEnded;
+
     /// <summary>Set for operations that can be stopped part-way, such as bulk compression.</summary>
     private CancellationTokenSource? _cancellableOperation;
 
@@ -119,6 +124,7 @@ public partial class VaultShellView
         _cancellableOperation?.Dispose();
         _cancellableOperation = null;
         _busyOperation = false;
+        BusyEnded?.Invoke();
     }
 
     private IProgress<OperationProgress> CreateUiProgressReporter() =>

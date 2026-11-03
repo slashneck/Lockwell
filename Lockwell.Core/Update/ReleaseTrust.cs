@@ -32,8 +32,7 @@ public static class ReleaseTrust
     ///
     /// Public by design. Knowing this key lets anyone check that a release came from the
     /// holder of the private half; it does not help anyone produce one. The private half
-    /// is never in this repository, never in a build, and never on a machine that
-    /// publishes anything.
+    /// is never in this repository and never in a build.
     ///
     /// An empty value is not a mistake that quietly downgrades to unverified updates; it
     /// disables updating entirely, because an updater that cannot tell a genuine release

@@ -4,6 +4,49 @@ All notable changes to Lockwell. Newest first.
 
 ---
 
+## 1.4.1 - 2026-11-03
+
+### Corrections
+
+Earlier notes and documents said things that were not true. They are fixed here, and the
+threat model now says what actually happens.
+
+- **Setup did not check the signature on a first install.** The 1.2.0 README, Setup's own
+  screens and these notes said it did. Only updates launched from the app were verified. A
+  fresh install relied on HTTPS alone. Every install route now verifies, and the code is
+  built so that a route skipping the check cannot compile. The installer already published
+  with 1.2.0 is unchanged until the next release.
+- **The signing key was never "offline".** It is a file on the maintainer's PC, the same
+  one that publishes releases. The claim has been removed.
+- **"With the check off, Lockwell makes no network connections" was false.** Device linking
+  and sending use your local network.
+- **The 1.2.0 notes said updates download in the background.** They download when you click.
+
+### Fixed
+
+- **Folder export could lose files if you then removed the folder.** It exported only the
+  first attachment of each item, judged success by counting, and then offered to delete the
+  originals. An item holding two files lost one. It now exports every attachment and reads
+  each one back to compare. It will not offer removal unless all of that passed, and not for
+  a folder holding items with notes or fields, since those exist only in the vault. If you
+  removed a folder after exporting it on 1.3.0, check that any item with several attachments
+  came out whole.
+- **Deleting a profile could delete other vaults.** Deleting the first profile removed its
+  whole folder, which is also where settings and every other profile are stored. It now
+  removes that vault's own files and nothing else.
+- **A vault on an unplugged drive looked like an empty profile**, and offered to create a new
+  vault in its place. Lockwell now says the drive is missing, and lets you point it at the
+  folder if the drive came back under another letter.
+- **Moving a vault** now saves first, lands in its own "Lockwell vault" folder, refuses a
+  folder holding another vault's files, and throws away a copy that fails its checks.
+- **Locking no longer interrupts an export, move or backup.** The idle timer, minimising and
+  the lock button now wait for the work to finish, then lock.
+- **Setup's Update button never worked.** It stopped at the signature check every time,
+  because nothing fetched the signed manifest. It does now. Setup also refuses to install an
+  older version over a newer one, on every route. The 1.2.0 Setup had no such check on its
+  Install option.
+- **Export file names** can no longer escape the chosen folder, whatever a name contains.
+
 ## 1.4.0 - 2026-10-14
 
 ### Vault location
@@ -21,8 +64,8 @@ All notable changes to Lockwell. Newest first.
   remove the original. If anything does not check out, nothing is switched and the vault
   stays exactly where it was. Stopping part-way leaves the original untouched too.
 
-  The check compares every file's size and compares the vault file itself by hash, because
-  that is the one file where a single wrong byte would cost everything.
+  Every file is compared by hash, because this copy may be about to become your only one,
+  and a cheap USB stick can hand back different bytes without any error.
 
 - **It refuses the moves that would lose data**: onto itself, into a folder inside itself,
   into a folder that contains it, or on top of a vault that is already there. Each refusal
@@ -32,15 +75,6 @@ All notable changes to Lockwell. Newest first.
   the old copy still opens with the same password, so keeping it means two working copies
   of your data exist. Only the vault's own files are removed; settings and other profiles
   in the same folder are left alone.
-
-### Fixed
-
-- **Setup could install an older version over a newer one.** Its update path took
-  whatever the releases page called "latest" and installed it without ever checking what
-  was already on the machine, so a build newer than the published one would be silently
-  replaced by the older public one, taking its features with it. It now refuses to go
-  backwards and says so. Reinstalling the same version over a damaged install still
-  works.
 
 ## 1.3.0 - 2026-10-14
 
@@ -102,19 +136,19 @@ All notable changes to Lockwell. Newest first.
   seconds after you unlock, and never interrupts what you are doing. A badge appears on
   Settings. That is the whole of it.
 
-- **Nothing installs unless it is signed.** Every release carries a manifest signed with a
-  key that is kept offline, and the matching public key is built into the app. A release
+- **The app only installs what is signed.** Every release carries a signed manifest, and
+  the matching public key is built into the app. A release
   that is not signed by that key is refused, no matter where it came from or what the
   download page says about it. The size and the SHA-256 of the package are checked too,
   and setup checks all three again before it writes a single file, because the app's word
   for it is not good enough in the process that does the writing.
 
-- **Downloads happen when you say so.** The update is fetched in the background, but it is
-  never installed until you click. Silently swapping the files under a running vault app
-  was considered and rejected.
+- **Downloads happen when you say so.** Only the small signed manifest is fetched by the
+  check. The update itself is downloaded and installed when you click. Silently swapping
+  the files under a running vault app was considered and rejected.
 
-- **You can turn the check off.** Settings, Updates. With it off, Lockwell makes no
-  network connections at all.
+- **You can turn the check off.** Settings, Updates. With it off, Lockwell only contacts
+  GitHub if you ask it to. Device linking is separate and stays on your local network.
 
 - **The threat model now says this out loud.** It used to claim Lockwell made no network
   calls whatsoever, which stopped being true the moment this feature existed. It now

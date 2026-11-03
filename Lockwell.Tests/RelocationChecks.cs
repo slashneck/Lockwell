@@ -38,6 +38,56 @@ internal static class RelocationChecks
         Refusals();
         RoundTrip();
         VerifyCatchesDamage();
+        ProfileDeletion();
+    }
+
+    // ------------------------------------------------------- deleting a profile
+
+    private static void ProfileDeletion()
+    {
+        Check.Section("69. Deleting a profile removes that vault and nothing else");
+
+        string scratch = Check.Scratch("profile-delete");
+        try
+        {
+            // The first profile's vault lives in the data root, with everything else inside it.
+            File.WriteAllText(Path.Combine(scratch, "vault.lwv"), "{}");
+            File.WriteAllText(Path.Combine(scratch, "settings.json"), "{}");
+            Directory.CreateDirectory(Path.Combine(scratch, "attachments"));
+            string other = Path.Combine(scratch, "profiles", "other");
+            Directory.CreateDirectory(other);
+            File.WriteAllText(Path.Combine(other, "vault.lwv"), "{}");
+
+            ProfileManager.DeleteVaultFiles(scratch);
+
+            Check.That("the vault's own file is gone", !File.Exists(Path.Combine(scratch, "vault.lwv")));
+            Check.That("its attachments are gone", !Directory.Exists(Path.Combine(scratch, "attachments")));
+            Check.That("settings beside it survive", File.Exists(Path.Combine(scratch, "settings.json")));
+            Check.That("another profile's vault stored underneath survives",
+                File.Exists(Path.Combine(other, "vault.lwv")));
+
+            string lone = Path.Combine(scratch, "lone");
+            Directory.CreateDirectory(lone);
+            File.WriteAllText(Path.Combine(lone, "vault.lwv"), "{}");
+            ProfileManager.DeleteVaultFiles(lone);
+            Check.That("a profile's own folder is tidied away once empty", !Directory.Exists(lone));
+
+            var unplugged = new Models.VaultProfile
+            {
+                VaultDir = Path.Combine(scratch, "gone", "Lockwell vault"),
+            };
+            Check.That("a vault outside app storage that is missing counts as disconnected",
+                ProfileManager.IsVaultDisconnected(unplugged));
+            Check.That("a new profile inside app storage does not",
+                !ProfileManager.IsVaultDisconnected(new Models.VaultProfile
+                {
+                    VaultDir = Path.Combine(ProfileManager.ProfilesRoot, "new"),
+                }));
+        }
+        finally
+        {
+            Check.Cleanup(scratch);
+        }
     }
 
     // ---------------------------------------------------------------- refusals
@@ -79,6 +129,17 @@ internal static class RelocationChecks
             File.WriteAllText(Path.Combine(elsewhere, VaultRelocation.VaultFileName), "{}");
             Check.That("moving onto an existing vault is refused",
                 VaultRelocation.Validate(source, elsewhere) is not null);
+
+            string leftovers = Path.Combine(scratch, "leftovers");
+            Directory.CreateDirectory(Path.Combine(leftovers, "attachments"));
+            Check.That("a folder holding another vault's leftovers is refused",
+                VaultRelocation.Validate(source, leftovers) is not null);
+
+            string usb = Path.Combine(scratch, "usb");
+            Directory.CreateDirectory(usb);
+            string landed = VaultRelocation.ResolveDestination(usb);
+            Check.That("a move lands in its own new folder, not loose in the one picked",
+                !Directory.Exists(landed) && Path.GetDirectoryName(landed) == usb);
 
             Check.That("every refusal explains itself in a sentence",
                 VaultRelocation.Validate(source, source)?.EndsWith('.') == true);
@@ -213,6 +274,28 @@ internal static class RelocationChecks
                 problems.Count > 0);
             Check.That("and the problem names the vault file",
                 problems.Any(p => p.Contains("vault file", StringComparison.OrdinalIgnoreCase)));
+
+            File.WriteAllBytes(copiedVault, original);
+
+            // The same check for an attachment. A size comparison alone would wave this
+            // through, and a cheap USB stick can do exactly this without any error.
+            string attachments = Path.Combine(source, "attachments");
+            Directory.CreateDirectory(attachments);
+            File.WriteAllBytes(Path.Combine(attachments, "a.lwa"), new byte[] { 1, 2, 3, 4 });
+            var withFile = VaultRelocation.Prepare(source, destination);
+            VaultRelocation.Copy(withFile, null, CancellationToken.None);
+            Check.That("a clean attachment copy verifies", VaultRelocation.Verify(withFile).Count == 0);
+            File.WriteAllBytes(Path.Combine(destination, "attachments", "a.lwa"), new byte[] { 1, 2, 3, 5 });
+            Check.That("a same-size attachment with different contents is caught",
+                VaultRelocation.Verify(withFile).Count > 0);
+
+            VaultRelocation.DeleteAbandonedCopy(withFile);
+            Check.That("giving up removes the copy", !Directory.Exists(destination));
+            Check.That("and leaves the original alone",
+                File.Exists(Path.Combine(source, VaultRelocation.VaultFileName))
+                && File.Exists(Path.Combine(attachments, "a.lwa")));
+
+            VaultRelocation.Copy(plan, null, CancellationToken.None);
 
             // A missing file.
             File.Delete(copiedVault);

@@ -45,25 +45,6 @@ namespace Lockwell.Views;
 /// </summary>
 public partial class VaultShellView
 {
-    /// <summary>One file to write out, with the path it should land at.</summary>
-    private sealed record FolderExportItem(AttachmentRef Attachment, string RelativePath);
-
-    private sealed class FolderExportPlan
-    {
-        public List<FolderExportItem> Items { get; } = new();
-
-        /// <summary>Sub-folders, including empty ones, so the shape survives the trip.</summary>
-        public List<string> Directories { get; } = new();
-    }
-
-    private sealed class FolderExportResult
-    {
-        public int Exported { get; set; }
-        public List<string> Failures { get; } = new();
-        public bool Cancelled { get; set; }
-        public string Destination { get; set; } = "";
-    }
-
     // ---------------------------------------------------------------- entry points
 
     /// <summary>Export button on a folder tile in the gallery.</summary>
@@ -95,12 +76,11 @@ public partial class VaultShellView
     {
         if (_busyOperation) return;
 
-        // Build the plan on the UI thread. The background half then only reads and
-        // decrypts attachments, and never touches the vault's own collections while the
-        // UI could still be changing them.
-        var plan = BuildFolderExportPlan(folder);
+        // Built on the UI thread, so the background half only decrypts attachments and never
+        // touches the vault's own collections.
+        var plan = FolderExporter.BuildPlan(_vault.Data, folder);
 
-        if (plan.Items.Count == 0 && plan.Directories.Count == 0)
+        if (plan.Files.Count == 0 && plan.Directories.Count == 0 && plan.VaultOnlyItems.Count == 0)
         {
             MessageBox.Show(
                 $"\"{folder.Name}\" has nothing in it to export.",
@@ -108,7 +88,7 @@ public partial class VaultShellView
             return;
         }
 
-        string countText = plan.Items.Count == 1 ? "1 file" : $"{plan.Items.Count} files";
+        string countText = plan.Files.Count == 1 ? "1 file" : $"{plan.Files.Count} files";
         var confirm = MessageBox.Show(
             $"Export \"{folder.Name}\" ({countText}) out of the vault?\n\n"
             + "The files are written decrypted, so another program can read them. Once "
@@ -123,8 +103,7 @@ public partial class VaultShellView
 
         string destinationRoot = dlg.FolderName;
 
-        // Writing the vault's own storage back into itself would mean exporting into a
-        // directory that the export is also reading from.
+        // Plain copies in the vault's own folder would sit beside the encrypted files.
         if (IsInsideVaultStorage(destinationRoot))
         {
             MessageBox.Show(
@@ -134,18 +113,14 @@ public partial class VaultShellView
         }
 
         var token = ShowCancellableProgress($"Exporting {folder.Name}", "Preparing...");
-        var result = new FolderExportResult();
+        FolderExporter.Result result;
 
         try
         {
             var uiProgress = new Progress<OperationProgress>(ApplyOperationProgress);
-            await Task.Run(
-                () => RunFolderExport(folder, plan, destinationRoot, result, uiProgress, token),
-                token).ConfigureAwait(true);
-        }
-        catch (OperationCanceledException)
-        {
-            result.Cancelled = true;
+            result = await Task.Run(
+                () => FolderExporter.Run(plan, folder.Name, destinationRoot, ReadForExport, uiProgress, token),
+                CancellationToken.None).ConfigureAwait(true);
         }
         catch (Exception ex)
         {
@@ -156,134 +131,27 @@ public partial class VaultShellView
         }
 
         await FinishProgressAsync(
-            result.Cancelled ? "Stopped." : $"Exported {result.Exported} of {plan.Items.Count}.")
+            result.Cancelled ? "Stopped." : $"Exported {result.Exported} of {plan.Files.Count}.")
             .ConfigureAwait(true);
 
         ReportExportOutcome(folder, plan, result);
     }
 
-    /// <summary>
-    /// Walk the folder tree and record what has to be written where.
-    ///
-    /// Paths are relative and built here, so the background half never has to work out
-    /// where something belongs. Empty sub-folders are included on purpose: a folder
-    /// someone made and has not filled yet is still part of how they arranged things.
-    /// </summary>
-    private FolderExportPlan BuildFolderExportPlan(MediaFolder folder)
+    private byte[] ReadForExport(AttachmentRef attachment)
     {
-        var plan = new FolderExportPlan();
-        Collect(folder, "");
-        return plan;
-
-        void Collect(MediaFolder current, string prefix)
-        {
-            string here = prefix.Length == 0
-                ? ""
-                : prefix;
-
-            foreach (var entry in _vault.Data.Entries.Where(e => e.MediaFolderId == current.Id))
-            {
-                var att = entry.Attachments.FirstOrDefault();
-                if (att is null) continue;
-                plan.Items.Add(new FolderExportItem(att, here));
-            }
-
-            foreach (var sub in _vault.Data.MediaFolders
-                         .Where(f => f.ParentFolderId == current.Id)
-                         .OrderBy(f => f.Order))
-            {
-                string childPath = Path.Combine(here, SanitizePathName(sub.Name));
-                plan.Directories.Add(childPath);
-                Collect(sub, childPath);
-            }
-        }
-    }
-
-    /// <summary>
-    /// The background half. Decrypts and writes, one file at a time.
-    ///
-    /// A file that fails is recorded and the run continues. Stopping the whole export on
-    /// the first unreadable attachment would be the worst possible behaviour here: the
-    /// one file that cannot be read is exactly the reason to get the other nine hundred
-    /// out while that is still possible.
-    /// </summary>
-    private void RunFolderExport(
-        MediaFolder folder,
-        FolderExportPlan plan,
-        string destinationRoot,
-        FolderExportResult result,
-        IProgress<OperationProgress> progress,
-        CancellationToken token)
-    {
-        string root = UniqueDirectoryPath(destinationRoot, SanitizePathName(folder.Name));
-        Directory.CreateDirectory(root);
-        result.Destination = root;
-
-        foreach (string relative in plan.Directories)
-            Directory.CreateDirectory(Path.Combine(root, relative));
-
-        int done = 0;
-        foreach (var item in plan.Items)
-        {
-            if (token.IsCancellationRequested)
-            {
-                result.Cancelled = true;
-                return;
-            }
-
-            progress.Report(new OperationProgress
-            {
-                Detail = item.Attachment.FileName,
-                Current = done,
-                Total = plan.Items.Count,
-            });
-
-            byte[]? data = null;
-            try
-            {
-                string directory = Path.Combine(root, item.RelativePath);
-                Directory.CreateDirectory(directory);
-                string path = UniqueFilePath(directory, item.Attachment.FileName);
-
-                lock (_vaultOpLock)
-                {
-                    data = _vault.ReadAttachment(item.Attachment);
-                }
-
-                File.WriteAllBytes(path, data);
-                result.Exported++;
-            }
-            catch (Exception ex)
-            {
-                result.Failures.Add($"{item.Attachment.FileName}: {ex.Message}");
-            }
-            finally
-            {
-                // The decrypted bytes exist in memory for as long as it takes to write
-                // them and not a moment longer.
-                if (data is not null) Array.Clear(data, 0, data.Length);
-            }
-
-            done++;
-        }
-
-        progress.Report(new OperationProgress
-        {
-            Detail = "Finishing...",
-            Current = plan.Items.Count,
-            Total = plan.Items.Count,
-        });
+        lock (_vaultOpLock)
+            return _vault.ReadAttachment(attachment);
     }
 
     // ---------------------------------------------------------------- the report
 
     private void ReportExportOutcome(
-        MediaFolder folder, FolderExportPlan plan, FolderExportResult result)
+        MediaFolder folder, FolderExporter.Plan plan, FolderExporter.Result result)
     {
         if (result.Cancelled)
         {
             MessageBox.Show(
-                $"Stopped after {result.Exported} of {plan.Items.Count} files.\n\n"
+                $"Stopped after {result.Exported} of {plan.Files.Count} files.\n\n"
                 + $"What was written is in:\n{result.Destination}\n\n"
                 + "Nothing was removed from the vault.",
                 "Lockwell", MessageBoxButton.OK, MessageBoxImage.Information);
@@ -297,9 +165,25 @@ public partial class VaultShellView
                 shown += $"\n...and {result.Failures.Count - 5} more.";
 
             MessageBox.Show(
-                $"Exported {result.Exported} of {plan.Items.Count} files to:\n{result.Destination}\n\n"
+                $"Exported {result.Exported} of {plan.Files.Count} files to:\n{result.Destination}\n\n"
                 + $"{result.Failures.Count} could not be written:\n{shown}\n\n"
                 + "Nothing was removed from the vault.",
+                "Lockwell", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        if (plan.VaultOnlyItems.Count > 0)
+        {
+            string shown = string.Join("\n", plan.VaultOnlyItems.Take(5));
+            if (plan.VaultOnlyItems.Count > 5)
+                shown += $"\n...and {plan.VaultOnlyItems.Count - 5} more.";
+
+            MessageBox.Show(
+                $"Exported all {plan.Files.Count} files to:\n{result.Destination}\n\n"
+                + "These items also hold notes or fields, which exist only inside the vault:\n"
+                + shown + "\n\n"
+                + "So this folder cannot be removed as part of the export. The exported files "
+                + "are decrypted and unprotected.",
                 "Lockwell", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
@@ -308,39 +192,22 @@ public partial class VaultShellView
     }
 
     /// <summary>
-    /// The second half of moving a folder somewhere else.
-    ///
-    /// Only offered when every planned file was written and none failed, and the files
-    /// are counted again on disk first rather than trusting the counter that just ran.
-    /// Deleting a folder out of the vault on the strength of an export that half worked
-    /// would destroy the only remaining copy, and no amount of convenience is worth that.
-    /// It defaults to No.
+    /// The second half of moving a folder somewhere else. Only reached when the exporter
+    /// says this is a complete, read-back copy, and it defaults to No.
     /// </summary>
     private void OfferToRemoveExportedFolder(
-        MediaFolder folder, FolderExportPlan plan, FolderExportResult result)
+        MediaFolder folder, FolderExporter.Plan plan, FolderExporter.Result result)
     {
-        int onDisk = CountFilesOnDisk(result.Destination);
-        bool verified = result.Exported == plan.Items.Count && onDisk >= plan.Items.Count;
+        if (!result.IsCompleteCopyOf(plan)) return;
 
-        string summary = plan.Items.Count == 1
+        string summary = plan.Files.Count == 1
             ? "Exported 1 file to:"
-            : $"Exported all {plan.Items.Count} files to:";
-
-        if (!verified)
-        {
-            MessageBox.Show(
-                $"{summary}\n{result.Destination}\n\n"
-                + $"Only {onDisk} file(s) could be found there afterwards, so the vault "
-                + "copy has been left alone. Check the destination before removing "
-                + "anything.\n\n"
-                + "These files are decrypted and unprotected now.",
-                "Lockwell", MessageBoxButton.OK, MessageBoxImage.Warning);
-            return;
-        }
+            : $"Exported all {plan.Files.Count} files to:";
 
         var answer = MessageBox.Show(
             $"{summary}\n{result.Destination}\n\n"
-            + "They are decrypted and unprotected there now.\n\n"
+            + "Every file was read back and matches. They are decrypted and unprotected there "
+            + "now.\n\n"
             + $"Remove \"{folder.Name}\" and everything in it from the vault?\n\n"
             + "This cannot be undone, and the exported copy becomes your only copy. "
             + "Choose No to keep both.",
@@ -365,20 +232,6 @@ public partial class VaultShellView
             "Lockwell", MessageBoxButton.OK, MessageBoxImage.Information);
     }
 
-    private static int CountFilesOnDisk(string directory)
-    {
-        try
-        {
-            return Directory.Exists(directory)
-                ? Directory.GetFiles(directory, "*", SearchOption.AllDirectories).Length
-                : 0;
-        }
-        catch (Exception)
-        {
-            return 0;
-        }
-    }
-
     /// <summary>
     /// Is this destination inside the vault's own storage? Exporting into it would have
     /// the export writing plain files into the directory holding the encrypted ones.
@@ -400,30 +253,5 @@ public partial class VaultShellView
         {
             return false;
         }
-    }
-
-    // ---------------------------------------------------------------- path helpers
-
-    private static string SanitizePathName(string name)
-    {
-        foreach (char c in Path.GetInvalidFileNameChars())
-            name = name.Replace(c, '_');
-        return string.IsNullOrWhiteSpace(name) ? "Folder" : name.Trim();
-    }
-
-    private static string UniqueFilePath(string directory, string fileName)
-    {
-        string path = Path.Combine(directory, fileName);
-        if (!File.Exists(path)) return path;
-
-        string stem = Path.GetFileNameWithoutExtension(fileName);
-        string ext = Path.GetExtension(fileName);
-        for (int i = 2; i < 1000; i++)
-        {
-            path = Path.Combine(directory, $"{stem} ({i}){ext}");
-            if (!File.Exists(path)) return path;
-        }
-
-        return Path.Combine(directory, Guid.NewGuid().ToString("N") + ext);
     }
 }

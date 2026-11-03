@@ -89,7 +89,8 @@ it on a machine you do not fully trust.
 ## The update check
 
 Earlier versions of this document said Lockwell made no network calls at all. That
-stopped being true when the update checker was added, so here is what it actually does.
+stopped being true when device linking and the update checker were added. Linking is
+covered in the mobile threat model. Here is what the update check actually does.
 
 Once a day, a few seconds after you unlock, Lockwell asks GitHub whether there is a
 newer release. It requests the release information for this project and nothing else.
@@ -100,15 +101,17 @@ a browser. Lockwell sends no identifier, no version number, no machine name, no
 account, and nothing at all about your vault. The User-Agent is the bare word
 "Lockwell" because GitHub rejects requests without one.
 
-**Turning it off:** Settings, Updates, uncheck "Check for updates". Nothing then
-contacts the network, ever. If you would rather Lockwell never had the option, build
-it yourself with the check removed. The source is right here.
+**Turning it off:** Settings, Updates, uncheck "Check for updates automatically". Lockwell
+then contacts GitHub only if you press the check button yourself. Device linking is
+separate: it uses your local network, and only while you are linking or sending. If you
+would rather Lockwell never had the option, build it yourself with the check removed.
+The source is right here.
 
 **Installing an update is the highest-risk thing Lockwell does.** It writes new
 executable code onto your machine. Two things constrain it:
 
-- Every release carries a manifest signed with a private key held offline. The
-  matching public key is compiled into the app. A release that is not signed by that
+- Every release carries a signed manifest. The matching public key is compiled into
+  the app. A release that is not signed by that
   key is refused, whatever GitHub says about it, and whoever served the bytes.
 - The check happens twice. The app verifies the signature, the size, and the SHA-256
   of the package before offering it, and the installer verifies all three again before
@@ -118,9 +121,12 @@ executable code onto your machine. Two things constrain it:
 Downloads only ever come from `github.com` and `githubusercontent.com` over HTTPS, and
 only after you click. Lockwell never replaces itself silently while you are using it.
 
-**Honest limits.** If the signing key were ever stolen, someone who could also control
-what your machine downloads could sign a malicious update and it would verify. The key
-is kept offline for exactly that reason, but "offline" is a practice, not a proof.
+**Honest limits.** The signing key is not on dedicated offline hardware. It is a file on
+the maintainer's everyday PC, the same machine that builds and publishes releases, and it
+is not encrypted at rest. Anyone who compromised that PC could take it. If the key were
+ever stolen, someone who could also control what your machine downloads could sign a
+malicious update and it would verify. The `LockwellSetup.exe` published with 1.2.0 also
+does not check the signature on a first install, only HTTPS. Later builds do.
 GitHub can also see that someone at your IP address runs Lockwell. If that alone is
 unacceptable in your situation, turn the check off and update by hand.
 
@@ -160,16 +166,17 @@ here, because it protects those unmapped blocks too.
 
 These are commitments, verifiable in the source:
 
-1. **One network call, and you can switch it off.** The update check is the only code
-   in Lockwell that touches the network. There is no telemetry, no analytics, and no
-   crash reporter. Nothing about your vault is ever sent anywhere. See "The update
-   check" below for exactly what it does.
+1. **Two uses of the network, both yours to control.** The update check talks to GitHub
+   and can be switched off. Device linking and sending talk only to devices on your local
+   network that you linked, and only send the items you choose. There is no telemetry, no
+   analytics, no crash reporter and no Lockwell server. See "The update check" above, and
+   THREAT-MODEL-MOBILE.md for linking.
 2. **No admin rights.** The app runs as a normal user (`asInvoker`). A vault
    asking for admin would be a red flag.
 3. **Secrets stay in C#.** There is no browser/JS layer that could leak
    decrypted data.
-4. **Minimal dependencies.** One vetted crypto library (Argon2id); everything
-   else is the .NET base library. Fewer dependencies means fewer places for a
+4. **Minimal dependencies.** One vetted crypto library (Argon2id) and one small library
+   for playing animated GIFs; everything else is the .NET base library. Fewer dependencies means fewer places for a
    supply-chain "trap" to hide.
 5. **Crash safe.** An unhandled error closes the app rather than risk dumping
    secret-bearing state.

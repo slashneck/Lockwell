@@ -17,7 +17,7 @@ No account, no server, no sync you did not ask for.
 ## Why this exists
 
 Most password managers ask you to trust a company with a copy of your secrets. Lockwell
-asks you to trust your own disk. The vault file never leaves your machine, there is no
+asks you to trust your own disk. The vault file stays on your machine unless you move it, there is no
 account to breach, and there is no recovery process that could be talked into handing
 your data to someone else. Forget your master password and your recovery key, and the
 data is gone. That is the trade, stated plainly.
@@ -39,8 +39,9 @@ software that asks for blind faith has it backwards.
 
 - **Encrypted at rest.** Argon2id (256 MiB, memory-hard) derives the key. AES-256-GCM
   encrypts the contents and detects tampering.
-- **No cloud, no accounts, no telemetry.** One optional update check, which you can
-  turn off.
+- **No cloud, no accounts, no telemetry.** The app uses the network for two things: an
+  update check you can turn off, and sending items to a device you linked yourself, over
+  your local network.
 - **Passwords, notes and files.** Images, video, audio and documents, all in the same
   vault.
 - **Built-in media viewer.** Photos and GIFs are decrypted in memory and never written
@@ -55,14 +56,14 @@ software that asks for blind faith has it backwards.
 - **Screen-capture awareness.** Optional exclusion from OBS and similar tools, plus a
   warning before you type your password if a recorder is already running.
 - **Auto-lock** on idle and on minimise. The clipboard clears itself after a copy.
-- **Signed updates.** Every release is signed with an offline key. The app and the
-  installer both check it before anything is written.
+- **Signed updates.** Every release is signed, and the app and the installer both check
+  the signature before anything is written. See the threat model for how far that goes.
 
 ## Install
 
 1. Download **LockwellSetup.exe** from the
    [latest release](https://github.com/slashneck/Lockwell/releases/latest).
-2. Run it. It fetches the signed app package, verifies the signature, and installs.
+2. Run it. It downloads the app package from GitHub and installs it.
 3. Launch Lockwell, create a vault, and choose a master password.
 
 <div align="center">
@@ -72,6 +73,11 @@ software that asks for blind faith has it backwards.
 </div>
 
 Windows 10 version 2004 or later, or Windows 11. 64-bit.
+
+**About the 1.2.0 installer:** the `LockwellSetup.exe` published with 1.2.0 does not check
+the package signature on a first install, only HTTPS. The source in this repository does,
+and that fix ships with the next release. If that matters to you, build from source, or
+check the zip yourself against `release.json` until then.
 
 Your vault lives in `%LocalAppData%\Lockwell\`. Nothing in the installer or the app
 package contains any data of yours.

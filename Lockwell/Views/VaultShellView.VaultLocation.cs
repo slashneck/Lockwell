@@ -130,16 +130,28 @@ public partial class VaultShellView
 
         var dlg = new OpenFolderDialog
         {
-            Title = "Choose the folder the vault should move to",
+            Title = "Choose where the vault should move to",
         };
         if (dlg.ShowDialog() != true) return;
 
-        string destination = dlg.FolderName;
+        string destination = VaultRelocation.ResolveDestination(dlg.FolderName);
 
         string? refusal = VaultRelocation.Validate(_vault.VaultDir, destination);
         if (refusal is not null)
         {
             MessageBox.Show(refusal, "Lockwell", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        // Before anything is measured, so the copy holds every edit made so far.
+        try
+        {
+            _vault.Save();
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show("Could not save the vault before moving it: " + ex.Message, "Lockwell",
+                MessageBoxButton.OK, MessageBoxImage.Error);
             return;
         }
 
@@ -167,17 +179,14 @@ public partial class VaultShellView
         var go = MessageBox.Show(
             $"Move this vault to:\n{plan.Destination}\n\n"
             + $"{plan.Files.Count} file(s), {VaultRelocation.Megabytes(plan.TotalBytes)}.\n\n"
-            + "It stays encrypted the whole way. Lockwell will copy it, check the copy, "
-            + "and then use the new location. Nothing is removed from the old one until "
+            + "It stays encrypted the whole way. Lockwell will copy it, check every file, "
+            + "and then use the new location. Nothing is removed from the old one unless "
             + "you confirm.\n\n"
-            + "The vault will lock, and you will unlock it again afterwards.",
+            + "The vault will lock afterwards, and you will unlock it again.",
             "Lockwell", MessageBoxButton.OKCancel, MessageBoxImage.Question);
         if (go != MessageBoxResult.OK) return;
 
-        // Lock before touching anything. An open vault holds its file, and copying a
-        // vault that is still being written to is how a copy ends up subtly wrong.
         CloseOverlay();
-        _vault.Lock();
 
         var token = ShowCancellableProgress("Moving vault", "Preparing...");
         List<string> problems;
@@ -188,63 +197,60 @@ public partial class VaultShellView
             problems = await Task.Run(() =>
             {
                 VaultRelocation.Copy(plan, reporter, token);
-                return VaultRelocation.Verify(plan);
+                return VaultRelocation.Verify(plan, reporter, token);
             }, token).ConfigureAwait(true);
         }
         catch (OperationCanceledException)
         {
             HideProgress();
-            CleanUpAbandonedCopy(plan);
+            VaultRelocation.DeleteAbandonedCopy(plan);
             MessageBox.Show(
                 "The move was stopped. Your vault is still in its original location and "
                 + "nothing was changed.",
                 "Lockwell", MessageBoxButton.OK, MessageBoxImage.Information);
-            _onLock();
             return;
         }
         catch (Exception ex)
         {
             HideProgress();
+            VaultRelocation.DeleteAbandonedCopy(plan);
             MessageBox.Show(
                 "The vault could not be copied: " + ex.Message + "\n\n"
-                + "Nothing was changed. Your vault is still in its original location.",
+                + "Nothing was changed. Your vault is still in its original location. A USB "
+                + "stick formatted as FAT32 cannot hold any file over 4 GB.",
                 "Lockwell", MessageBoxButton.OK, MessageBoxImage.Error);
-            _onLock();
             return;
         }
 
-        await FinishProgressAsync("Checking the copy...").ConfigureAwait(true);
-
         if (problems.Count > 0)
         {
+            HideProgress();
+            VaultRelocation.DeleteAbandonedCopy(plan);
+
             string shown = string.Join("\n", problems.Take(5));
             if (problems.Count > 5) shown += $"\n...and {problems.Count - 5} more.";
 
             MessageBox.Show(
-                "The copy did not come out right, so nothing was switched over:\n\n"
-                + shown + "\n\n"
-                + "Your vault is untouched in its original location. The incomplete copy "
-                + $"at {plan.Destination} can be deleted.",
+                "The copy did not come out right, so it was thrown away and nothing was "
+                + "switched over:\n\n" + shown + "\n\n"
+                + "Your vault is untouched in its original location. If this drive is a USB "
+                + "stick, it may be failing.",
                 "Lockwell", MessageBoxButton.OK, MessageBoxImage.Error);
-            _onLock();
             return;
         }
 
-        // Verified. Now, and only now, the profile changes hands.
+        await FinishProgressAsync("Every file checked.").ConfigureAwait(true);
+
+        // The order here matters. Lock first: the app's normal lock saves the vault, and
+        // that save must never write into a folder this move may be about to empty.
+        _vault.Lock();
         string previous = plan.Source;
         profile.VaultDir = plan.Destination;
         _settings.Save();
 
         OfferToRemoveOldVault(plan, previous);
 
-        // Back to the gate, which builds a fresh VaultManager from the profile's new
-        // path. Carrying on with the old one would leave the app reading a folder that
-        // may no longer hold a vault.
-        //
-        // Locking is what returns to the gate, and the vault is already locked by this
-        // point, so the save-before-lock step there correctly does nothing. That order
-        // matters: saving first would write the vault back into the folder this move may
-        // have just emptied.
+        // Back to the gate, which builds a fresh VaultManager from the profile's new path.
         _onLock();
     }
 
@@ -253,6 +259,7 @@ public partial class VaultShellView
         var answer = MessageBox.Show(
             $"The vault is now at:\n{plan.Destination}\n\n"
             + $"The original copy is still at:\n{previous}\n\n"
+            + "Every file was checked against it first.\n\n"
             + "Remove it? It is still encrypted and still opens with your master "
             + "password, so leaving it means there are two copies of your data that both "
             + "work.\n\n"
@@ -279,27 +286,5 @@ public partial class VaultShellView
                   + $"\n\nYou can delete what is left at {previous} yourself.",
             "Lockwell", MessageBoxButton.OK,
             failures.Count == 0 ? MessageBoxImage.Information : MessageBoxImage.Warning);
-    }
-
-    /// <summary>
-    /// Clear away a copy that was abandoned part-way. Best effort, and deliberately
-    /// never touches anything outside the destination it just created.
-    /// </summary>
-    private static void CleanUpAbandonedCopy(VaultRelocation.Plan plan)
-    {
-        foreach (string name in VaultRelocation.VaultEntries)
-        {
-            string path = Path.Combine(plan.Destination, name);
-            try
-            {
-                if (File.Exists(path)) File.Delete(path);
-                else if (Directory.Exists(path)) Directory.Delete(path, recursive: true);
-            }
-            catch (Exception)
-            {
-                // Leaving a partial copy behind is untidy, not dangerous. The original
-                // is what matters and it has not been touched.
-            }
-        }
     }
 }

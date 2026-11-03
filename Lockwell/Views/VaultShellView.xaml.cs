@@ -3744,20 +3744,6 @@ public partial class VaultShellView : UserControl
         }
     }
 
-    private static string UniqueDirectoryPath(string parent, string folderName)
-    {
-        string path = Path.Combine(parent, folderName);
-        if (!Directory.Exists(path)) return path;
-
-        for (int i = 2; i < 1000; i++)
-        {
-            path = Path.Combine(parent, $"{folderName} ({i})");
-            if (!Directory.Exists(path)) return path;
-        }
-
-        return Path.Combine(parent, Guid.NewGuid().ToString("N"));
-    }
-
     private void OpenAttachment(AttachmentRef att)
     {
         try

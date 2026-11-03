@@ -48,8 +48,10 @@ internal static class InstallerElevation
 
         try
         {
+            // Quoted: a path with a space in it, such as a user folder, otherwise arrives
+            // at the elevated copy as two broken arguments.
             var relaunchArgs = string.Join(" ",
-                args.Where(a => !IsElevatedFlag(a)).Append(ElevatedFlag));
+                args.Where(a => !IsElevatedFlag(a)).Select(a => $"\"{a}\"").Append(ElevatedFlag));
 
             Process.Start(new ProcessStartInfo
             {
