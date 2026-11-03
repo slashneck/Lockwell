@@ -1,156 +1,123 @@
-<div align="center">
+<p align="center">
+  <img src="assets/banner.png" alt="Lockwell" width="100%">
+</p>
 
-<img src="assets/banner.png" alt="Lockwell" width="900">
+<p align="center">
+  <a href="https://github.com/slashneck/Lockwell/releases/latest"><img src="https://img.shields.io/github/v/release/slashneck/Lockwell?style=flat-square&label=release&color=f4f4f4&labelColor=161616" alt="Latest release"></a>
+  <a href="https://github.com/slashneck/Lockwell/releases"><img src="https://img.shields.io/github/downloads/slashneck/Lockwell/total?style=flat-square&color=f4f4f4&labelColor=161616" alt="Downloads"></a>
+  <img src="https://img.shields.io/badge/Windows-10%20%26%2011-f4f4f4?style=flat-square&labelColor=161616" alt="Windows 10 and 11">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-f4f4f4?style=flat-square&labelColor=161616" alt="GPL 3.0"></a>
+</p>
 
-Passwords, notes, keys and private media, behind one master password.
-No account, no server, no sync you did not ask for.
+<p align="center">
+  <a href="https://github.com/slashneck/Lockwell/releases/latest"><b>Download for Windows</b></a>
+  &nbsp;&nbsp;|&nbsp;&nbsp;
+  <a href="#features">Features</a>
+  &nbsp;&nbsp;|&nbsp;&nbsp;
+  <a href="#security">Security</a>
+  &nbsp;&nbsp;|&nbsp;&nbsp;
+  <a href="#building">Build it yourself</a>
+</p>
 
-[Download](https://github.com/slashneck/Lockwell/releases/latest) &middot;
-[Threat model](docs/THREAT-MODEL.md) &middot;
-[Vault format](docs/VAULT-FORMAT.md) &middot;
-[Changelog](CHANGELOG.md)
+<br>
 
-</div>
+Lockwell keeps your passwords, notes, keys and private files behind one master password, in an encrypted vault on your
+own PC. There is no account and no server, so there is nothing to breach and nobody who can reset your password for you.
+Forget your master password and your recovery key, and the data is gone.
 
----
+<p align="center">
+  <img src="assets/screenshots/logins.png" alt="Logins, with secret fields hidden until you ask" width="860">
+</p>
 
-## Why this exists
+<p align="center">
+  <img src="assets/screenshots/media-vault.png" alt="The media vault" width="860">
+</p>
 
-Most password managers ask you to trust a company with a copy of your secrets. Lockwell
-asks you to trust your own disk. The vault file stays on your machine unless you move it, there is no
-account to breach, and there is no recovery process that could be talked into handing
-your data to someone else. Forget your master password and your recovery key, and the
-data is gone. That is the trade, stated plainly.
+<p align="center">
+  <img src="assets/screenshots/storage.png" alt="Storage broken down by folder and file" width="860">
+</p>
 
-The other half of the trade is that you can read every line of how it works. Security
-software that asks for blind faith has it backwards.
-
-<div align="center">
-
-<img src="assets/screenshots/logins.png" alt="Logins, with secret fields hidden until you ask" width="860">
-
-<img src="assets/screenshots/media-vault.png" alt="The media vault" width="860">
-
-<img src="assets/screenshots/storage.png" alt="Storage broken down by folder and file" width="860">
-
-</div>
+<p align="center">
+  <sub>Screenshots are from version 1.2. The app looks different now.</sub>
+</p>
 
 ## Features
 
-- **Encrypted at rest.** Argon2id (256 MiB, memory-hard) derives the key. AES-256-GCM
-  encrypts the contents and detects tampering.
-- **No cloud, no accounts, no telemetry.** The app uses the network for two things: an
-  update check you can turn off, and sending items to a device you linked yourself, over
-  your local network.
-- **Passwords, notes and files.** Images, video, audio and documents, all in the same
-  vault.
-- **Built-in media viewer.** Photos and GIFs are decrypted in memory and never written
-  to disk.
-- **Categories, folders and search.** Sorting that holds up once the vault gets big.
-- **Storage breakdown.** Drill from the whole vault down to a single file to see what
-  is using space.
-- **Built-in compression.** Shrink photos, audio or video using the encoders already on
-  your PC. Runs in memory, and you see the result before you commit to it.
-- **Encrypted backups.** Export and restore backups you control.
-- **Multiple profiles.** Separate vaults for separate parts of your life.
-- **Screen-capture awareness.** Optional exclusion from OBS and similar tools, plus a
-  warning before you type your password if a recorder is already running.
-- **Auto-lock** on idle and on minimise. The clipboard clears itself after a copy.
-- **Signed updates.** Every release is signed, and the app and the installer both check
-  the signature before anything is written. See the threat model for how far that goes.
+**Encrypted at rest.** Argon2id (256 MiB) derives the key from your master password. AES-256-GCM encrypts the contents
+and detects tampering.
+
+**Passwords, notes and any file.** Logins, keys and notes sit next to photos, video, audio and documents, even a project
+RAR. Click a field to copy it, and the clipboard clears itself.
+
+**Find anything.** Ctrl K searches items, files, folders, sections and commands from one box. Secret fields and notes are
+never searched, and neither is anything inside a hidden NSFW folder.
+
+**Files.** Folders, a grid or a list, and Ctrl-click to move, export or delete several at once. Photos and GIFs are
+decrypted in memory and never written to disk. Videos play right in the app, and while one plays a decrypted copy sits in
+a temp folder. A storage breakdown shows what is using space, and built-in compression can shrink photos, audio and video
+using the encoders already on your PC.
+
+**Yours to move.** Encrypted backups, exporting whole folders, and moving the whole vault to another drive like a USB
+stick. Separate profiles get separate vaults with their own passwords.
+
+**Locks itself.** Auto-lock when idle or minimized. Optional exclusion from OBS and similar tools, and a warning before
+you type your password if a recorder is already running.
+
+**Android companion.** Early, and it lives in this repository too. It holds only the items you send to it, never a mirror
+of your vault. Pairing happens over your local network.
 
 ## Install
 
-1. Download **LockwellSetup.exe** from the
-   [latest release](https://github.com/slashneck/Lockwell/releases/latest).
-2. Run it. It downloads the app package from GitHub and installs it.
-3. Launch Lockwell, create a vault, and choose a master password.
+Download `LockwellSetup.exe` from the [latest release](https://github.com/slashneck/Lockwell/releases/latest) and run it.
+It installs to Program Files, so Windows asks for admin rights. The app itself runs without them.
 
-<div align="center">
+The setup isn't code signed yet, so Windows SmartScreen may say it "protected your PC". Click **More info** and then
+**Run anyway**. Every release is signed with Lockwell's own key, and both the setup and the app check that signature
+before anything is written.
 
-<img src="assets/screenshots/setup.png" alt="Lockwell Setup" width="680">
+<p align="center">
+  <img src="assets/screenshots/setup.png" alt="Lockwell Setup, from version 1.2" width="680">
+</p>
 
-</div>
+You need Windows 10 (version 2004 or newer) or Windows 11, 64 bit.
 
-Windows 10 version 2004 or later, or Windows 11. 64-bit.
+Your vault lives in `%LocalAppData%\Lockwell`, or on the drive you moved it to. Updates only replace program files.
 
-**About the 1.2.0 installer:** the `LockwellSetup.exe` published with 1.2.0 does not check
-the package signature on a first install, only HTTPS. The source in this repository does,
-and that fix ships with the next release. If that matters to you, build from source, or
-check the zip yourself against `release.json` until then.
-
-Your vault lives in `%LocalAppData%\Lockwell\`. Nothing in the installer or the app
-package contains any data of yours.
-
-**Write down the recovery key.** It is the only other way into your vault, and it is
-shown once.
-
-## Build it yourself
-
-You do not have to trust the binaries.
-
-```
-git clone https://github.com/slashneck/Lockwell.git
-cd Lockwell
-dotnet build Lockwell/Lockwell.csproj -c Release
-```
-
-You need the .NET 8 SDK. The Android companion additionally needs the MAUI workload.
-
-Before shipping anything, run the checks:
-
-```
-dotnet run --project Lockwell.Tests -c Debug --nologo
-```
-
-That harness is not a formality. It covers the vault round trip, the key derivation,
-the wire protocol, the update trust chain, and a set of guards for bugs that got into
-the app once already and are not allowed back in.
-
-Released binaries are not obfuscated, so what you build is what is published. Builds
-are not bit-for-bit reproducible, so this is not a hash you can compare, but there is
-nothing in the shipped files deliberately made unreadable.
+**Write down the recovery key.** It is the only other way into your vault, and it is shown once.
 
 ## Security
 
-Lockwell is built to be as unreadable at rest as a local app can be, and honest about
-where that stops.
+The [threat model](docs/THREAT-MODEL.md) says what Lockwell protects against and what it can't: keyloggers, malware on an
+unlocked PC, decrypted video in the temp folder while it plays, and why overwriting a file on an SSD is weaker than it
+sounds. The file layout is in [the vault format](docs/VAULT-FORMAT.md).
 
-`docs/THREAT-MODEL.md` documents what Lockwell protects against **and what it does
-not**: keyloggers, malware on an unlocked machine, decrypted video in the temp folder
-while it plays, why overwriting a file on an SSD is weaker than it sounds. Read it
-before you decide this is the right place for something that matters.
+Lockwell uses the network for two things: an update check you can turn off, and sending items to a device you linked
+yourself over your local network. There is no telemetry.
 
-Found a vulnerability? See [SECURITY.md](SECURITY.md).
+Found a security problem? Please [report it privately](https://github.com/slashneck/Lockwell/security/advisories/new)
+instead of opening a public issue.
 
-## Project layout
+## Building
 
-| Path | What it is |
-|---|---|
-| `Lockwell/` | The Windows desktop app (WPF, .NET 8) |
-| `Lockwell.Core/` | Crypto, vault format, sync protocol and update trust. Shared, no UI |
-| `Lockwell.Installer/` | The setup and update program |
-| `Lockwell.Tests/` | The verification harness |
-| `Lockwell.Mobile/` | Android companion app (.NET MAUI, early) |
-| `build-tools/` | Publish, packaging and release-signing tooling |
-| `docs/` | Threat models, vault format, sync protocol |
+You need the .NET 8 SDK. The Android app also needs the MAUI workload.
 
-## Android companion
+```powershell
+dotnet build Lockwell/Lockwell.csproj -c Release
+```
 
-An Android app is in the repository and is early. It holds only the items you
-deliberately send to it, never a mirror of your PC vault, so losing the phone costs
-only what was on it. Pairing happens over your local network with no server in the
-middle. See `docs/MOBILE-COMPANION-PLAN.md` and `docs/SYNC-PROTOCOL.md`.
+To run the checks, which cover the vault, the encryption, old vaults still opening and the update signatures:
 
-## Licence
+```powershell
+dotnet run --project Lockwell.Tests -c Debug --nologo
+```
 
-GPL-3.0-or-later. See [LICENSE](LICENSE).
+Release builds are not obfuscated, so what you build is what is published. They are not bit-for-bit reproducible though,
+so you can't compare hashes.
 
-That choice is deliberate. Anyone may use, study, modify and share Lockwell, and
-anyone who distributes a modified build has to hand over their source too. A vault you
-cannot inspect is a vault you are taking on faith.
+## License
 
-Third-party components and their licences are listed in
+Copyright 2026 Lockwell. Lockwell is free software under the [GNU General Public License version 3](LICENSE) or later: you
+can use, change and share it, and any version you share has to stay under the same license with its source code available.
+
+Made by Lockwell and Claude, see [AUTHORS.md](AUTHORS.md). Third-party parts are listed in
 [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
-
-Copyright 2026 Lockwell.
