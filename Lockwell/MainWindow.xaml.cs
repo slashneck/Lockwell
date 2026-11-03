@@ -49,6 +49,9 @@ public partial class MainWindow : Window
         _autoLock = new AutoLockService(TimeSpan.FromMinutes(Math.Max(1, _settings.AutoLockMinutes)));
         _autoLock.LockRequested += () => Dispatcher.Invoke(RequestLock);
 
+        // At the window, so shortcuts work wherever focus happens to be.
+        PreviewKeyDown += (_, e) => (Host.Content as VaultShellView)?.HandleGlobalKey(e);
+
         WindowWorkAreaHelper.Attach(this);
         Loaded += OnLoaded;
     }
@@ -56,6 +59,7 @@ public partial class MainWindow : Window
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
         CaptureProtection.Apply(this, _settings.ExcludeFromCapture);
+        MessageBox.ExcludeFromCapture = _settings.ExcludeFromCapture;
 
         if (_settings.RunPreflight)
             ShowPreflight();
@@ -67,13 +71,11 @@ public partial class MainWindow : Window
 
     private void ShowPreflight()
     {
-        SetUnlockedChrome(false);
         SetHost(new PreflightView(new PreflightScanner(), ShowGate));
     }
 
     private void ShowGate()
     {
-        SetUnlockedChrome(false);
         SetHost(new ProfileGateView(_profiles, OnProfileSelected));
     }
 
@@ -125,7 +127,6 @@ public partial class MainWindow : Window
 
     private void OnUnlocked()
     {
-        SetUnlockedChrome(true);
         _autoLock.SetIdleLimit(TimeSpan.FromMinutes(Math.Max(1, _settings.AutoLockMinutes)));
         _autoLock.Start();
 
@@ -210,16 +211,9 @@ public partial class MainWindow : Window
     private void ApplySettings()
     {
         CaptureProtection.Apply(this, _settings.ExcludeFromCapture);
+        MessageBox.ExcludeFromCapture = _settings.ExcludeFromCapture;
         _autoLock.SetIdleLimit(TimeSpan.FromMinutes(Math.Max(1, _settings.AutoLockMinutes)));
         _settings.Save();
-    }
-
-    private void SetUnlockedChrome(bool unlocked)
-    {
-        LockNowButton.Visibility = unlocked ? Visibility.Visible : Visibility.Collapsed;
-        LockedPillText.Text = unlocked ? "Unlocked" : "Locked";
-        LockedPill.Background = (System.Windows.Media.Brush)FindResource(unlocked ? "Bg3" : "Bg2");
-        LockedPillText.Foreground = (System.Windows.Media.Brush)FindResource(unlocked ? "Accent" : "Muted");
     }
 
     // -------------------------------------------------------- window chrome
@@ -234,7 +228,6 @@ public partial class MainWindow : Window
         base.OnClosed(e);
     }
 
-    private void LockNowButton_Click(object sender, RoutedEventArgs e) => RequestLock();
     private void MinButton_Click(object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
 
     private void MaxButton_Click(object sender, RoutedEventArgs e)

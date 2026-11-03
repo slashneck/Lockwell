@@ -88,28 +88,18 @@ public partial class VaultShellView
     /// <summary>The Updates block inside the Settings overlay.</summary>
     private void AddUpdateSettings()
     {
-        OverlayBody.Children.Add(new Border
-        {
-            Height = 1,
-            Background = (Brush)FindResource("Stroke"),
-            Margin = new Thickness(0, 18, 0, 14),
-        });
-        OverlayBody.Children.Add(new TextBlock
-        {
-            Text = "Updates",
-            Style = (Style)FindResource("H2"),
-        });
+        AddSettingsHeading("Updates", first: true);
 
-        OverlayBody.Children.Add(new TextBlock
+        FormHost.Children.Add(new TextBlock
         {
             Text = $"You have Lockwell {UpdateService.CurrentVersion.ToString(3)}.",
             Style = (Style)FindResource("Body"),
-            Margin = new Thickness(0, 6, 0, 10),
+            Margin = new Thickness(0, 0, 0, 14),
         });
 
         if (!Lockwell.Update.ReleaseTrust.IsConfigured)
         {
-            OverlayBody.Children.Add(new TextBlock
+            FormHost.Children.Add(new TextBlock
             {
                 Text = "This build has no update signing key, so it cannot tell a genuine "
                      + "release from a forged one. Updating is disabled. Download new "
@@ -119,21 +109,17 @@ public partial class VaultShellView
                 TextWrapping = TextWrapping.Wrap,
                 Margin = new Thickness(0, 0, 0, 10),
             });
-            OverlayBody.Children.Add(BuildReleasesPageLink());
+            FormHost.Children.Add(BuildReleasesPageLink());
             return;
         }
 
-        var autoCheck = AddToggle("Check for updates automatically", _settings.CheckForUpdates);
-        OverlayBody.Children.Add(new TextBlock
-        {
-            Text = "Once a day, Lockwell asks GitHub whether a newer release exists. It sends "
-                 + "no identifier, no version number and nothing about your vault, but it is "
-                 + "still a request, so GitHub sees your address and roughly when you used "
-                 + "the app. Nothing is ever installed without you choosing to.",
-            Style = (Style)FindResource("Caption"),
-            TextWrapping = TextWrapping.Wrap,
-            Margin = new Thickness(0, 0, 0, 12),
-        });
+        AddSettingSwitch("Check for updates automatically",
+            "Once a day, Lockwell asks GitHub whether a newer release exists. It sends no "
+            + "identifier, no version number and nothing about your vault, but it is still a "
+            + "request, so GitHub sees your address and roughly when you used the app. Nothing is "
+            + "ever installed without you choosing to.",
+            _settings.CheckForUpdates,
+            on => _settings.CheckForUpdates = on);
 
         var status = new TextBlock
         {
@@ -146,7 +132,7 @@ public partial class VaultShellView
         var installButton = new Button
         {
             Style = (Style)FindResource("AccentButton"),
-            Height = 40,
+            Height = 34,
             MinWidth = 180,
             HorizontalAlignment = HorizontalAlignment.Left,
             Margin = new Thickness(0, 0, 0, 8),
@@ -157,7 +143,7 @@ public partial class VaultShellView
         {
             Style = (Style)FindResource("GhostButton"),
             Content = "Check now",
-            Height = 40,
+            Height = 34,
             MinWidth = 160,
             HorizontalAlignment = HorizontalAlignment.Left,
             Margin = new Thickness(0, 0, 0, 8),
@@ -269,7 +255,6 @@ public partial class VaultShellView
                 // The installer waits for this process to exit before touching anything.
                 // Lock on the way out so a vault is never left unlocked behind an
                 // installer that is about to restart the app.
-                CloseOverlay();
                 _onLock();
                 Application.Current.Shutdown();
             }
@@ -289,22 +274,16 @@ public partial class VaultShellView
             }
         };
 
-        OverlayBody.Children.Add(status);
-        OverlayBody.Children.Add(installButton);
-        OverlayBody.Children.Add(checkButton);
-        OverlayBody.Children.Add(BuildReleasesPageLink());
+        FormHost.Children.Add(status);
+        FormHost.Children.Add(installButton);
+        FormHost.Children.Add(checkButton);
+        FormHost.Children.Add(BuildReleasesPageLink());
 
         // If the background check already found something, say so on open rather than
         // making the user press Check now to be told what the badge already implied.
         if (_pendingUpdate?.Manifest is not null) OfferInstall(_pendingUpdate);
 
-        _updateSettingsCommit = () =>
-        {
-            _settings.CheckForUpdates = autoCheck.IsChecked == true;
-        };
     }
-
-    private Action? _updateSettingsCommit;
 
     private void GetAndroidApp_Click(object sender, RoutedEventArgs e) =>
         OpenInBrowser(UpdateService.ReleasesPageUrl);
@@ -318,18 +297,13 @@ public partial class VaultShellView
     /// </summary>
     private void AddAboutSettings()
     {
-        OverlayBody.Children.Add(new Border
+        AddSettingsHeading("About", first: true);
+        FormHost.Children.Add(new TextBlock
         {
-            Height = 1,
-            Background = (Brush)FindResource("Stroke"),
-            Margin = new Thickness(0, 18, 0, 14),
+            Text = $"Lockwell {UpdateService.CurrentVersion.ToString(3)}",
+            Style = (Style)FindResource("Body"),
         });
-        OverlayBody.Children.Add(new TextBlock
-        {
-            Text = "About",
-            Style = (Style)FindResource("H2"),
-        });
-        OverlayBody.Children.Add(new TextBlock
+        FormHost.Children.Add(new TextBlock
         {
             Text = "Lockwell is free software under the GNU General Public License, version 3 "
                  + "or later. You can read every line of it, build it yourself, change it, "
@@ -338,7 +312,7 @@ public partial class VaultShellView
             TextWrapping = TextWrapping.Wrap,
             Margin = new Thickness(0, 6, 0, 8),
         });
-        OverlayBody.Children.Add(new TextBlock
+        FormHost.Children.Add(new TextBlock
         {
             Text = "Copyright 2026 Lockwell. Comes with absolutely no warranty.",
             Style = (Style)FindResource("Caption"),
@@ -354,7 +328,7 @@ public partial class VaultShellView
             Margin = new Thickness(0, 4, 0, 0),
         };
         source.Click += (_, _) => OpenInBrowser(UpdateService.SourceCodeUrl);
-        OverlayBody.Children.Add(source);
+        FormHost.Children.Add(source);
     }
 
     private UIElement BuildReleasesPageLink()

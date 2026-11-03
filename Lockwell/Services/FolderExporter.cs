@@ -66,27 +66,43 @@ public static class FolderExporter
             && plan.VaultOnlyItems.Count == 0;
     }
 
-    public static Plan BuildPlan(VaultData data, MediaFolder folder)
+    public static Plan BuildPlan(VaultData data, MediaFolder folder) =>
+        BuildPlan(data, new[] { folder }, Array.Empty<VaultEntry>(), rootIsFolder: true);
+
+    /// <summary>
+    /// A plan for a selection: whole folders, each under its own name, and loose files
+    /// alongside them.
+    /// </summary>
+    public static Plan BuildPlan(VaultData data, IEnumerable<MediaFolder> folders, IEnumerable<VaultEntry> entries)
+    {
+        var folderList = folders.ToList();
+        var entryList = entries.ToList();
+        return BuildPlan(data, folderList, entryList, rootIsFolder: folderList.Count == 1 && entryList.Count == 0);
+    }
+
+    private static Plan BuildPlan(
+        VaultData data, IReadOnlyList<MediaFolder> folders, IReadOnlyList<VaultEntry> entries, bool rootIsFolder)
     {
         var plan = new Plan();
         var seen = new HashSet<string>(StringComparer.Ordinal);
-        Collect(folder, "");
-        return plan;
+
+        void AddEntry(VaultEntry entry, string relative)
+        {
+            foreach (var attachment in entry.Attachments)
+                plan.Files.Add(new PlannedFile(attachment, relative));
+
+            bool hasText = !string.IsNullOrWhiteSpace(entry.Notes)
+                           || entry.Fields.Any(f => !string.IsNullOrEmpty(f.Value));
+            if (hasText || entry.Attachments.Count == 0)
+                plan.VaultOnlyItems.Add(entry.Title);
+        }
 
         void Collect(MediaFolder current, string relative)
         {
             if (!seen.Add(current.Id)) return;   // a corrupt parent loop must not hang this
 
             foreach (var entry in data.Entries.Where(e => e.MediaFolderId == current.Id))
-            {
-                foreach (var attachment in entry.Attachments)
-                    plan.Files.Add(new PlannedFile(attachment, relative));
-
-                bool hasText = !string.IsNullOrWhiteSpace(entry.Notes)
-                               || entry.Fields.Any(f => !string.IsNullOrEmpty(f.Value));
-                if (hasText || entry.Attachments.Count == 0)
-                    plan.VaultOnlyItems.Add(entry.Title);
-            }
+                AddEntry(entry, relative);
 
             foreach (var sub in data.MediaFolders
                          .Where(f => f.ParentFolderId == current.Id)
@@ -97,6 +113,24 @@ public static class FolderExporter
                 Collect(sub, child);
             }
         }
+
+        foreach (var folder in folders)
+        {
+            if (rootIsFolder)
+            {
+                Collect(folder, "");
+                continue;
+            }
+
+            string name = SafeName(folder.Name, "Folder");
+            plan.Directories.Add(name);
+            Collect(folder, name);
+        }
+
+        foreach (var entry in entries)
+            AddEntry(entry, "");
+
+        return plan;
     }
 
     /// <summary>

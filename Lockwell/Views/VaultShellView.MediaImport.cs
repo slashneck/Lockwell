@@ -54,7 +54,7 @@ public partial class VaultShellView
     }
 
     private static bool DirectoryTreeHasMedia(string dirPath) =>
-        Directory.EnumerateFiles(dirPath).Any(IsMediaFilePath) ||
+        Directory.EnumerateFiles(dirPath).Any(IsImportableFile) ||
         Directory.EnumerateDirectories(dirPath).Any(DirectoryTreeHasMedia);
 
     private void PlanDirectoryTree(MediaImportPlan plan, string categoryId, string dirPath, string? parentFolderId)
@@ -75,7 +75,7 @@ public partial class VaultShellView
         if (parentFolderId is null)
             plan.RootFolderId = folder.Id;
 
-        foreach (string filePath in Directory.EnumerateFiles(dirPath).Where(IsMediaFilePath))
+        foreach (string filePath in Directory.EnumerateFiles(dirPath).Where(IsImportableFile))
         {
             plan.Files.Add(new MediaFileImport
             {
@@ -103,7 +103,7 @@ public partial class VaultShellView
         {
             if (Directory.Exists(path))
                 PlanDirectoryTree(plan, categoryId, path, parentFolderId);
-            else if (File.Exists(path) && IsMediaFilePath(path))
+            else if (File.Exists(path) && IsImportableFile(path))
             {
                 plan.Files.Add(new MediaFileImport
                 {
@@ -206,7 +206,6 @@ public partial class VaultShellView
     {
         if (summary.FilesAdded == 0 && summary.FoldersCreated == 0) return;
 
-        UpdateStats();
         RefreshCategories();
         if (summary.LastCreatedRootFolderId is not null)
             _currentMediaFolderId = summary.LastCreatedRootFolderId;

@@ -142,7 +142,7 @@ public partial class VaultShellView
     {
         var codeCard = new Border
         {
-            CornerRadius = new CornerRadius(14),
+            CornerRadius = new CornerRadius(8),
             Padding = new Thickness(20, 18, 20, 18),
             Margin = new Thickness(0, 14, 0, 0),
             Background = (Brush)FindResource("Bg1"),
@@ -192,7 +192,7 @@ public partial class VaultShellView
 
         var card = new Border
         {
-            CornerRadius = new CornerRadius(14),
+            CornerRadius = new CornerRadius(8),
             Padding = new Thickness(18, 16, 18, 16),
             Margin = new Thickness(0, 12, 0, 0),
             Background = (Brush)FindResource("Bg2"),
@@ -317,7 +317,7 @@ public partial class VaultShellView
     {
         var card = new Border
         {
-            CornerRadius = new CornerRadius(14),
+            CornerRadius = new CornerRadius(8),
             Padding = new Thickness(18, 16, 18, 16),
             Margin = new Thickness(0, 12, 0, 0),
             Background = (Brush)FindResource("Bg2"),
@@ -631,7 +631,7 @@ public partial class VaultShellView
 
         var fp = new Border
         {
-            CornerRadius = new CornerRadius(12),
+            CornerRadius = new CornerRadius(8),
             Padding = new Thickness(18, 16, 18, 16),
             Margin = new Thickness(0, 14, 0, 0),
             Background = (Brush)FindResource("Bg1"),

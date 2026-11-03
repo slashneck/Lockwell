@@ -39,37 +39,17 @@ public partial class VaultShellView
 {
     private void AddVaultLocationSettings()
     {
-        OverlayBody.Children.Add(new Border
-        {
-            Height = 1,
-            Background = (Brush)FindResource("Stroke"),
-            Margin = new Thickness(0, 18, 0, 14),
-        });
-        OverlayBody.Children.Add(new TextBlock
-        {
-            Text = "Vault location",
-            Style = (Style)FindResource("H2"),
-        });
+        AddSettingsHeading("Vault location");
 
-        OverlayBody.Children.Add(new TextBlock
+        FormHost.Children.Add(new TextBlock
         {
             Text = _vault.VaultDir,
             Style = (Style)FindResource("Body"),
-            Margin = new Thickness(0, 6, 0, 6),
+            Margin = new Thickness(0, 0, 0, 4),
             TextWrapping = TextWrapping.Wrap,
         });
 
-        long size = MeasureCurrentVaultBytes();
-        OverlayBody.Children.Add(new TextBlock
-        {
-            Text = size > 0
-                ? $"{VaultRelocation.Megabytes(size)} on disk."
-                : "Size could not be measured.",
-            Style = (Style)FindResource("Caption"),
-            Margin = new Thickness(0, 0, 0, 10),
-        });
-
-        OverlayBody.Children.Add(new TextBlock
+        FormHost.Children.Add(new TextBlock
         {
             Text = "Move this vault to another drive, such as a USB stick or an external "
                  + "disk. It is copied exactly as it is stored, still encrypted the whole "
@@ -85,14 +65,12 @@ public partial class VaultShellView
         {
             Style = (Style)FindResource("GhostButton"),
             Content = "Move vault to another folder...",
-            Height = 40,
             HorizontalAlignment = HorizontalAlignment.Left,
-            MinWidth = 230,
         };
         moveBtn.Click += (_, _) => BeginMoveVault();
-        OverlayBody.Children.Add(moveBtn);
+        FormHost.Children.Add(moveBtn);
 
-        OverlayBody.Children.Add(new TextBlock
+        FormHost.Children.Add(new TextBlock
         {
             Text = "A vault on a removable drive is only readable while that drive is "
                  + "plugged in. If it is the only copy, keep a backup somewhere else.",
@@ -101,18 +79,6 @@ public partial class VaultShellView
             TextWrapping = TextWrapping.Wrap,
             Margin = new Thickness(0, 10, 0, 0),
         });
-    }
-
-    private long MeasureCurrentVaultBytes()
-    {
-        try
-        {
-            return VaultRelocation.Prepare(_vault.VaultDir, _vault.VaultDir).TotalBytes;
-        }
-        catch (Exception)
-        {
-            return 0;
-        }
     }
 
     // ---------------------------------------------------------------- the move

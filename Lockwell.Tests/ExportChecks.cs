@@ -137,12 +137,73 @@ internal static class ExportChecks
             var noted = new FolderExporter.Result { Exported = withNotes.Files.Count, Destination = "x" };
             Check.That("and removal is not offered for it", !noted.IsCompleteCopyOf(withNotes));
 
+            var selection = FolderExporter.BuildPlan(
+                vault.Data, new[] { sub }, vault.Data.Entries.Where(e => e.MediaFolderId == root.Id));
+            Check.That("a selection keeps a folder under its own name, with loose files beside it",
+                selection.Files.Any(f => f.RelativeDirectory == "Clips")
+                && selection.Files.Any(f => f.RelativeDirectory == "" && f.Attachment.FileName == "project.rar"));
+
+            SearchChecks(vault);
+
             vault.Lock();
         }
         finally
         {
             Check.Cleanup(scratch);
         }
+    }
+
+    private static void SearchChecks(VaultManager vault)
+    {
+        Check.Section("71. Search finds things without giving secrets away");
+
+        var category = vault.Data.Categories.First(c => !c.IsMedia);
+        var login = new VaultEntry
+        {
+            CategoryId = category.Id,
+            Title = "Northwind Mail",
+            Fields =
+            {
+                new EntryField { Label = "Username", Value = "sam@example.test" },
+                new EntryField { Label = "Password", Value = "hunter2-unique", IsSecret = true },
+            },
+            Notes = "private-note-text",
+        };
+        vault.Data.Entries.Add(login);
+
+        var media = vault.Data.Categories.First(c => c.IsMedia);
+        var hiddenFolder = new MediaFolder { CategoryId = media.Id, Name = "Private stuff", IsNsfw = true };
+        var insideHidden = new MediaFolder { CategoryId = media.Id, Name = "Inner", ParentFolderId = hiddenFolder.Id };
+        vault.Data.MediaFolders.Add(hiddenFolder);
+        vault.Data.MediaFolders.Add(insideHidden);
+        vault.Data.Entries.Add(new VaultEntry
+        {
+            CategoryId = media.Id,
+            MediaFolderId = insideHidden.Id,
+            Title = "hiddenfile",
+            Kind = EntryKind.Media,
+        });
+
+        IReadOnlyList<VaultSearch.Hit> Find(string q, bool hide = true) => VaultSearch.Find(vault.Data, q, hide);
+
+        Check.That("an item is found by its title", Find("northwind").Any(h => h.Entry == login));
+        Check.That("and by a visible field", Find("sam@example").Any(h => h.Entry == login));
+        Check.That("a secret field never matches", Find("hunter2").Count == 0);
+        Check.That("a note never matches", Find("private-note").Count == 0);
+        Check.That("the result text never carries a secret",
+            Find("northwind").All(h => !h.Subtitle.Contains("hunter2") && !h.Title.Contains("hunter2")));
+        Check.That("a hidden folder is not found", Find("Private stuff").Count == 0);
+        Check.That("nor a folder inside it", Find("Inner").Count == 0);
+        Check.That("nor a file inside that", Find("hiddenfile").Count == 0);
+        Check.That("they are found once hiding is off", Find("hiddenfile", hide: false).Count == 1);
+        Check.That("a prefix ranks above a mid-word match",
+            VaultSearch.Find(vault.Data, "north", true)[0].Entry == login);
+        Check.That("an empty search returns nothing", Find("   ").Count == 0);
+
+        Check.That("copying picks the password",
+            VaultSearch.PrimarySecret(login)?.Label == "Password");
+        Check.That("an item with no secret has nothing to copy",
+            VaultSearch.PrimarySecret(new VaultEntry()) is null);
     }
 
     private static byte[] Bytes(int length, int seed)

@@ -54,6 +54,9 @@ public sealed class AppSettings
     /// <summary>How the media gallery orders folders and files.</summary>
     public MediaSortMode MediaSortMode { get; set; } = MediaSortMode.Custom;
 
+    /// <summary>Show Files as a compact list rather than a grid of tiles.</summary>
+    public bool FilesListView { get; set; }
+
     /// <summary>Reverse the active sort (Z-A, oldest first, smallest first).</summary>
     public bool MediaSortDescending { get; set; }
 

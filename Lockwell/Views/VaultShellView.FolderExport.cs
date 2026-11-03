@@ -72,33 +72,40 @@ public partial class VaultShellView
 
     // ---------------------------------------------------------------- the flow
 
-    private async Task ExportMediaFolderAsync(MediaFolder folder)
+    private Task ExportMediaFolderAsync(MediaFolder folder) =>
+        ExportPlanAsync(folder.Name, FolderExporter.BuildPlan(_vault.Data, folder), () =>
+        {
+            DeleteMediaFolderTree(folder);
+            if (_currentMediaFolderId is not null &&
+                !_vault.Data.MediaFolders.Any(f => f.Id == _currentMediaFolderId))
+                _currentMediaFolderId = folder.ParentFolderId;
+
+            _vault.Save();
+            RefreshCategories();
+            RefreshMediaGallery();
+        });
+
+    private async Task ExportPlanAsync(string name, FolderExporter.Plan plan, Action removeFromVault)
     {
         if (_busyOperation) return;
 
-        // Built on the UI thread, so the background half only decrypts attachments and never
-        // touches the vault's own collections.
-        var plan = FolderExporter.BuildPlan(_vault.Data, folder);
-
         if (plan.Files.Count == 0 && plan.Directories.Count == 0 && plan.VaultOnlyItems.Count == 0)
         {
-            MessageBox.Show(
-                $"\"{folder.Name}\" has nothing in it to export.",
-                "Lockwell", MessageBoxButton.OK, MessageBoxImage.Information);
+            MessageBox.Show($"\"{name}\" has nothing in it to export.", "Lockwell");
             return;
         }
 
         string countText = plan.Files.Count == 1 ? "1 file" : $"{plan.Files.Count} files";
-        var confirm = MessageBox.Show(
-            $"Export \"{folder.Name}\" ({countText}) out of the vault?\n\n"
-            + "The files are written decrypted, so another program can read them. Once "
-            + "they are on disk they have no protection at all, and anyone with access to "
-            + "that drive can open them.\n\n"
-            + "Choose somewhere you trust.",
-            "Lockwell", MessageBoxButton.OKCancel, MessageBoxImage.Warning);
-        if (confirm != MessageBoxResult.OK) return;
+        if (!MessageBox.Confirm($"Export {countText} out of the vault?",
+                "They are written decrypted, so another program can read them. Once they are on disk "
+                + "they have no protection at all, and anyone with access to that drive can open them. "
+                + "Choose somewhere you trust.",
+                "Choose a folder"))
+        {
+            return;
+        }
 
-        var dlg = new OpenFolderDialog { Title = $"Where should \"{folder.Name}\" go?" };
+        var dlg = new OpenFolderDialog { Title = $"Where should \"{name}\" go?" };
         if (dlg.ShowDialog() != true) return;
 
         string destinationRoot = dlg.FolderName;
@@ -106,27 +113,24 @@ public partial class VaultShellView
         // Plain copies in the vault's own folder would sit beside the encrypted files.
         if (IsInsideVaultStorage(destinationRoot))
         {
-            MessageBox.Show(
-                "That location is inside Lockwell's own storage. Pick somewhere else.",
-                "Lockwell", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show("That location is inside Lockwell's own storage. Pick somewhere else.", "Lockwell");
             return;
         }
 
-        var token = ShowCancellableProgress($"Exporting {folder.Name}", "Preparing...");
+        var token = ShowCancellableProgress($"Exporting {name}", "Preparing...");
         FolderExporter.Result result;
 
         try
         {
             var uiProgress = new Progress<OperationProgress>(ApplyOperationProgress);
             result = await Task.Run(
-                () => FolderExporter.Run(plan, folder.Name, destinationRoot, ReadForExport, uiProgress, token),
+                () => FolderExporter.Run(plan, name, destinationRoot, ReadForExport, uiProgress, token),
                 CancellationToken.None).ConfigureAwait(true);
         }
         catch (Exception ex)
         {
             HideProgress();
-            MessageBox.Show("Could not export the folder: " + ex.Message, "Lockwell",
-                MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show("Could not export: " + ex.Message, "Lockwell");
             return;
         }
 
@@ -134,7 +138,7 @@ public partial class VaultShellView
             result.Cancelled ? "Stopped." : $"Exported {result.Exported} of {plan.Files.Count}.")
             .ConfigureAwait(true);
 
-        ReportExportOutcome(folder, plan, result);
+        ReportExportOutcome(name, plan, result, removeFromVault);
     }
 
     private byte[] ReadForExport(AttachmentRef attachment)
@@ -146,15 +150,14 @@ public partial class VaultShellView
     // ---------------------------------------------------------------- the report
 
     private void ReportExportOutcome(
-        MediaFolder folder, FolderExporter.Plan plan, FolderExporter.Result result)
+        string name, FolderExporter.Plan plan, FolderExporter.Result result, Action removeFromVault)
     {
         if (result.Cancelled)
         {
             MessageBox.Show(
                 $"Stopped after {result.Exported} of {plan.Files.Count} files.\n\n"
                 + $"What was written is in:\n{result.Destination}\n\n"
-                + "Nothing was removed from the vault.",
-                "Lockwell", MessageBoxButton.OK, MessageBoxImage.Information);
+                + "Nothing was removed from the vault.", "Lockwell");
             return;
         }
 
@@ -167,8 +170,7 @@ public partial class VaultShellView
             MessageBox.Show(
                 $"Exported {result.Exported} of {plan.Files.Count} files to:\n{result.Destination}\n\n"
                 + $"{result.Failures.Count} could not be written:\n{shown}\n\n"
-                + "Nothing was removed from the vault.",
-                "Lockwell", MessageBoxButton.OK, MessageBoxImage.Warning);
+                + "Nothing was removed from the vault.", "Lockwell");
             return;
         }
 
@@ -182,54 +184,27 @@ public partial class VaultShellView
                 $"Exported all {plan.Files.Count} files to:\n{result.Destination}\n\n"
                 + "These items also hold notes or fields, which exist only inside the vault:\n"
                 + shown + "\n\n"
-                + "So this folder cannot be removed as part of the export. The exported files "
-                + "are decrypted and unprotected.",
-                "Lockwell", MessageBoxButton.OK, MessageBoxImage.Warning);
+                + "So they cannot be removed as part of the export. The exported files are decrypted "
+                + "and unprotected.", "Lockwell");
             return;
         }
 
-        OfferToRemoveExportedFolder(folder, plan, result);
-    }
-
-    /// <summary>
-    /// The second half of moving a folder somewhere else. Only reached when the exporter
-    /// says this is a complete, read-back copy, and it defaults to No.
-    /// </summary>
-    private void OfferToRemoveExportedFolder(
-        MediaFolder folder, FolderExporter.Plan plan, FolderExporter.Result result)
-    {
         if (!result.IsCompleteCopyOf(plan)) return;
 
-        string summary = plan.Files.Count == 1
-            ? "Exported 1 file to:"
-            : $"Exported all {plan.Files.Count} files to:";
+        // The second half of moving something elsewhere. Only reached with a complete,
+        // read-back copy, and the safe answer is the default.
+        bool remove = MessageBox.Confirm(
+            $"Exported. Remove \"{name}\" from the vault too?",
+            $"Every file was read back and matches. They are in:\n{result.Destination}\n\n"
+            + "They are decrypted and unprotected there now. Removing the vault copy cannot be undone, "
+            + "and the exported copy becomes your only copy.",
+            "Remove from vault",
+            danger: true);
 
-        var answer = MessageBox.Show(
-            $"{summary}\n{result.Destination}\n\n"
-            + "Every file was read back and matches. They are decrypted and unprotected there "
-            + "now.\n\n"
-            + $"Remove \"{folder.Name}\" and everything in it from the vault?\n\n"
-            + "This cannot be undone, and the exported copy becomes your only copy. "
-            + "Choose No to keep both.",
-            "Lockwell", MessageBoxButton.YesNo, MessageBoxImage.Warning,
-            MessageBoxResult.No);
+        if (!remove) return;
 
-        if (answer != MessageBoxResult.Yes) return;
-
-        DeleteMediaFolderTree(folder);
-        if (_currentMediaFolderId is not null &&
-            !_vault.Data.MediaFolders.Any(f => f.Id == _currentMediaFolderId))
-            _currentMediaFolderId = folder.ParentFolderId;
-
-        _vault.Save();
-        UpdateStats();
-        RefreshCategories();
-        RefreshMediaGallery();
-
-        MessageBox.Show(
-            $"\"{folder.Name}\" was removed from the vault. The exported copy in "
-            + $"{result.Destination} is now the only one.",
-            "Lockwell", MessageBoxButton.OK, MessageBoxImage.Information);
+        removeFromVault();
+        ShowToast($"\"{name}\" was removed from the vault.");
     }
 
     /// <summary>

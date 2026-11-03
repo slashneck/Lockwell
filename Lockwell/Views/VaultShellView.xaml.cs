@@ -47,8 +47,7 @@ public partial class VaultShellView : UserControl
 
     private const string AllId = "__all__";
     private const string FavId = "__fav__";
-    private const string MediaFilter =
-        "Media files|*.png;*.jpg;*.jpeg;*.gif;*.bmp;*.webp;*.mp4;*.mov;*.mkv;*.webm;*.avi;*.mp3;*.wav;*.flac;*.ogg;*.m4a;*.aac;*.wma|All files|*.*";
+    private const string MediaFilter = "All files|*.*";
     private const double OverlayDefaultMaxWidth = 560;
 
     private readonly ObservableCollection<CategoryRow> _sidebar = new();
@@ -129,6 +128,12 @@ public partial class VaultShellView : UserControl
         _mediaTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
         _mediaTimer.Tick += (_, _) => UpdateMediaSeekUi();
 
+        ImageViewer.IsVisibleChanged += (_, e) =>
+        {
+            if (e.NewValue is true) ShowViewerChrome();
+            else _viewerChromeTimer?.Stop();
+        };
+
         Loaded += OnLoaded;
         Unloaded += (_, _) =>
         {
@@ -141,14 +146,14 @@ public partial class VaultShellView : UserControl
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
         RefreshCategories();
-        UpdateStats();
         _loaded = true;
 
-        // Land on Home rather than dropping straight into a list of everything.
-        ShowHome();
+        VaultNameText.Text = _profiles.ActiveProfile?.Name ?? "Vault";
 
-        Anim.PopIn(SidebarPanel, 320);
-        Anim.SlideFadeIn(MainWorkspace, 360, 20, 80);
+        // Straight into the vault. There used to be a landing page here, showing a logo and
+        // some statistics to someone who had opened the app to find something.
+        CategoryList.SelectedIndex = 0;
+        UpdateBackupNudge();
 
         // Deliberately last, deliberately not awaited, and it waits several seconds of its
         // own before touching the network. Whether a newer build exists is the least
@@ -163,30 +168,35 @@ public partial class VaultShellView : UserControl
 
     private bool _customSectionsCollapsed;
 
+    private const string SectionsHeaderId = "__sections_header__";
+
     private void RefreshCategories()
     {
         string? keepId = _currentCategory?.Category.Id;
 
         _sidebar.Clear();
         _sidebar.Add(MakeRow(new Category { Id = AllId, Name = "All items", Glyph = "\uE71D" }));
-        _sidebar.Add(MakeRow(new Category { Id = FavId, Name = "Favorites", Glyph = "\uE735" }));
+        _sidebar.Add(MakeRow(new Category { Id = FavId, Name = "Favorites", Glyph = "\uE734" }));
 
         var ordered = _vault.Data.Categories.OrderBy(c => c.Order).ThenBy(c => c.Name).ToList();
 
-        // The sections Lockwell ships with come first and always show. Sections the user
-        // added go below a divider that folds, so a vault with a dozen of them does not
-        // bury the handful that are always there.
-        foreach (Category c in ordered.Where(c => !c.IsCustom))
-            _sidebar.Add(MakeRow(c));
+        var shipped = ordered.Where(c => !c.IsCustom && !c.IsMedia).ToList();
+        if (shipped.Count > 0)
+        {
+            _sidebar.Add(new CategoryRow(new Category { Id = SectionsHeaderId, Name = "SECTIONS" }, 0) { IsHeader = true });
+            foreach (Category c in shipped) _sidebar.Add(MakeRow(c));
+        }
 
-        var custom = ordered.Where(c => c.IsCustom).ToList();
+        // Sections the user added go below a divider that folds, so a vault with a dozen of
+        // them does not bury the ones that are always there.
+        var custom = ordered.Where(c => c.IsCustom && !c.IsMedia).ToList();
         if (custom.Count > 0)
         {
             _sidebar.Add(new CategoryRow(
-                new Category { Id = CustomHeaderId, Name = "Your sections", Glyph = "\uE8B7" },
-                custom.Count)
+                new Category { Id = CustomHeaderId, Name = "YOUR SECTIONS" }, custom.Count)
             {
                 IsHeader = true,
+                IsFoldable = true,
                 IsCollapsed = _customSectionsCollapsed,
             });
 
@@ -194,6 +204,14 @@ public partial class VaultShellView : UserControl
             {
                 foreach (Category c in custom) _sidebar.Add(MakeRow(c));
             }
+        }
+
+        // Files last, as its own place. Sections hold items; this holds files.
+        var media = ordered.Where(c => c.IsMedia).ToList();
+        if (media.Count > 0)
+        {
+            _sidebar.Add(new CategoryRow(new Category { Id = "__files_header__", Name = "FILES" }, 0) { IsHeader = true });
+            foreach (Category c in media) _sidebar.Add(MakeRow(c));
         }
 
         CategoryList.ItemsSource = _sidebar;
@@ -209,72 +227,23 @@ public partial class VaultShellView : UserControl
         }
 
         // Only fall back to the first section when we are actually browsing a section.
-        // Home and Storage deliberately have no selection, and auto-selecting one here
-        // would silently navigate the user to "All items" the next time anything
-        // refreshed the sidebar -- compressing, deleting, renaming.
-        if (_loaded && !_homeMode && !_storageMode && !_devicesMode &&
+        // Settings, Storage and Devices deliberately have no selection, and selecting one
+        // here would navigate away from them the next time anything refreshed the sidebar.
+        if (_loaded && !_settingsMode && !_storageMode && !_devicesMode &&
             CategoryList.SelectedItem is null && CategoryList.Items.Count > 0)
         {
             CategoryList.SelectedIndex = 0;
         }
     }
 
-    // ----------------------------------------------------------------- home
-
-    private bool _homeMode;
-
-    private void HomeButton_Click(object sender, System.Windows.Input.MouseButtonEventArgs e) => ShowHome();
-
-    private void HomeExportBackup_Click(object sender, RoutedEventArgs e) => ExportBackup();
-
-    private void ShowHome()
-    {
-        _homeMode = true;
-        _storageMode = false;
-        _devicesMode = false;
-        _currentCategory = null;
-        _mediaMode = false;
-        _currentMediaFolderId = null;
-
-        CategoryList.SelectedItem = null;
-        ListColumn.Visibility = Visibility.Collapsed;
-        DetailColumn.Visibility = Visibility.Collapsed;
-        MediaPanel.Visibility = Visibility.Collapsed;
-        StoragePanel.Visibility = Visibility.Collapsed;
-        DevicesPanel.Visibility = Visibility.Collapsed;
-
-        RefreshHome();
-
-        HomePanel.Visibility = Visibility.Visible;
-        Anim.SlideFadeIn(HomePanel, 340, 18);
-    }
-
-    private void RefreshHome()
-    {
-        if (!_vault.IsUnlocked) return;
-
-        HomeVaultName.Text = _profiles.ActiveProfile?.Name ?? "Vault";
-
-        var mediaCategoryIds = _vault.Data.Categories
-            .Where(c => c.IsMedia)
-            .Select(c => c.Id)
-            .ToHashSet();
-
-        var mediaEntries = _vault.Data.Entries.Where(e => mediaCategoryIds.Contains(e.CategoryId)).ToList();
-        int logins = _vault.Data.Entries.Count - mediaEntries.Count;
-        int folders = _vault.Data.MediaFolders.Count;
-        int sections = _vault.Data.Categories.Count;
-
-        HomeItemCount.Text = logins.ToString("N0");
-        HomeItemDetail.Text = sections == 1 ? "in 1 section" : $"across {sections} sections";
-
-        HomeMediaCount.Text = mediaEntries.Count.ToString("N0");
-        HomeMediaDetail.Text = folders == 1 ? "in 1 folder" : $"in {folders} folders";
-
-        HomeVaultSize.Text = FormatBytes(_vault.CalculateDiskSizeBytes());
-
-        UpdateBackupStatus();
-    }
+    /// <summary>
+    /// What a section is called on screen. The stored name is never changed, so a vault opened
+    /// by an older build, a backup, or the phone all still see exactly what they saw before.
+    /// </summary>
+    private static string DisplayName(Category category) =>
+        category.IsMedia && category.Name.Equals("Media vault", StringComparison.OrdinalIgnoreCase)
+            ? "Files"
+            : category.Name;
 
     /// <summary>
     /// The vault's own encrypted timestamp is authoritative. Older vaults only have the
@@ -283,42 +252,6 @@ public partial class VaultShellView : UserControl
     /// </summary>
     private DateTime? ResolveLastBackupUtc() =>
         (_vault.IsUnlocked ? _vault.Data.LastExportUtc : null) ?? _profiles.ActiveProfile?.LastBackupUtc;
-
-    private void UpdateBackupStatus()
-    {
-        DateTime? last = ResolveLastBackupUtc();
-
-        if (last is null)
-        {
-            HomeBackupTitle.Text = "No backup yet";
-            // A backup does NOT protect against a forgotten password: the backup ZIP is
-            // encrypted with that same password. Only the recovery key covers that case.
-            // What a backup protects against is losing the drive or the file itself.
-            HomeBackupDetail.Text = "A backup protects against drive failure or a lost PC. It stays encrypted.";
-            HomeBackupIcon.Text = "\uE7BA";
-            HomeBackupIcon.Foreground = (Brush)FindResource("Warning");
-            return;
-        }
-
-        var local = last.Value.ToLocalTime();
-        int days = (int)(DateTime.UtcNow - last.Value).TotalDays;
-
-        HomeBackupTitle.Text = "Last backup";
-        HomeBackupDetail.Text = days switch
-        {
-            <= 0 => $"Today, {local:HH:mm}",
-            1 => $"Yesterday, {local:HH:mm}",
-            < 30 => $"{days} days ago  ·  {local:d MMM yyyy}",
-            _ => $"{local:d MMM yyyy}  ·  worth making a fresh one",
-        };
-
-        // Nudge, not nag: only turn amber once it is genuinely stale.
-        bool stale = days >= 30;
-        HomeBackupIcon.Text = stale ? "\uE7BA" : "\uE73E";
-        HomeBackupIcon.Foreground = stale
-            ? (Brush)FindResource("Warning")
-            : (Brush)FindResource("Accent");
-    }
 
     private static string FormatBytes(long bytes)
     {
@@ -337,28 +270,16 @@ public partial class VaultShellView : UserControl
 
     private CategoryRow MakeRow(Category c)
     {
+        // One count, with one meaning: how many items or files are in this place. All items
+        // shows none, because it mixes loose items with folders and no single number says
+        // what that list holds.
         int count = c.Id switch
         {
-            AllId => CountAllItemsListRows(),
+            AllId => 0,
             FavId => _vault.Data.Entries.Count(e => e.Favorite),
-            _ when c.IsMedia => CountMediaCategoryItems(c.Id),
             _ => _vault.Data.Entries.Count(e => e.CategoryId == c.Id),
         };
         return new CategoryRow(c, count);
-    }
-
-    private int CountAllItemsListRows()
-    {
-        int entries = _vault.Data.Entries.Count(e => string.IsNullOrEmpty(e.MediaFolderId));
-        int folders = VisibleMediaFolders(forAllItems: true).Count();
-        return entries + folders;
-    }
-
-    private int CountMediaCategoryItems(string categoryId)
-    {
-        int files = _vault.Data.Entries.Count(e => e.CategoryId == categoryId);
-        int folders = _vault.Data.MediaFolders.Count(f => f.CategoryId == categoryId);
-        return files + folders;
     }
 
     private int CountHiddenNsfwRootFolders(string categoryId)
@@ -405,7 +326,7 @@ public partial class VaultShellView : UserControl
         // it was so the header never looks like the section you are in.
         if (row.IsHeader)
         {
-            _customSectionsCollapsed = !_customSectionsCollapsed;
+            if (row.IsFoldable) _customSectionsCollapsed = !_customSectionsCollapsed;
 
             string? restore = _currentCategory?.Category.Id;
             RefreshCategories();
@@ -416,11 +337,11 @@ public partial class VaultShellView : UserControl
             return;
         }
 
-        // Picking a section leaves Home / Storage.
-        _homeMode = false;
+        // Picking a section leaves Settings, Storage and Devices.
+        _settingsMode = false;
         _storageMode = false;
         _devicesMode = false;
-        HomePanel.Visibility = Visibility.Collapsed;
+        SettingsPanel.Visibility = Visibility.Collapsed;
         StoragePanel.Visibility = Visibility.Collapsed;
         DevicesPanel.Visibility = Visibility.Collapsed;
 
@@ -430,16 +351,18 @@ public partial class VaultShellView : UserControl
 
         if (_mediaMode)
         {
-            if (categoryChanged) _currentMediaFolderId = null;
+            if (categoryChanged)
+            {
+                _currentMediaFolderId = null;
+                _selectedFolderIds.Clear();
+                _selectedEntryIds.Clear();
+            }
             ShowMediaMode();
         }
         else
         {
             ShowStandardMode();
-            ListTitle.Text = _currentCategory?.Category.Name ?? "All items";
-            ListSubtitle.Text = _currentCategory?.Category.Id == FavId
-                ? "Starred entries"
-                : "Browse your vault";
+            ListTitle.Text = _currentCategory is null ? "All items" : DisplayName(_currentCategory.Category);
             RefreshEntries();
         }
     }
@@ -462,15 +385,15 @@ public partial class VaultShellView : UserControl
         ListColumn.Visibility = Visibility.Collapsed;
         DetailColumn.Visibility = Visibility.Collapsed;
         MediaPanel.Visibility = Visibility.Visible;
-        MediaPanel.Opacity = 0;
-        Anim.FadeIn(MediaPanel, 280);
-        MediaTitle.Text = _currentCategory?.Category.Name ?? "Media vault";
+        MediaTitle.Text = _currentCategory is null ? "Files" : DisplayName(_currentCategory.Category);
         RefreshMediaGallery();
     }
 
     private void MediaBreadcrumbNavigate(string? folderId)
     {
         _currentMediaFolderId = folderId;
+        _selectedFolderIds.Clear();
+        _selectedEntryIds.Clear();
         RefreshMediaGallery();
     }
 
@@ -478,6 +401,8 @@ public partial class VaultShellView : UserControl
     {
         MediaSearchBox.Text = "";
         _currentMediaFolderId = folderId;
+        _selectedFolderIds.Clear();
+        _selectedEntryIds.Clear();
         RefreshMediaGallery();
     }
 
@@ -537,6 +462,15 @@ public partial class VaultShellView : UserControl
         }
 
         EntryList.ItemsSource = rows;
+
+        ListSubtitle.Text = rows.Count == 1 ? "1 item" : $"{rows.Count} items";
+
+        // An empty section says what to do about it, rather than asking you to select
+        // something from a list with nothing in it.
+        bool empty = rows.Count == 0 && query.Length == 0;
+        EmptyStateTitle.Text = empty ? "Nothing here yet" : "Select an item";
+        EmptyStateHint.Text = empty ? "Add your first item to this section." : "Or press Ctrl K to find anything.";
+        EmptyStateAction.Visibility = empty ? Visibility.Visible : Visibility.Collapsed;
 
         if (_currentEntry is not null && rows.OfType<EntryRow>().All(r => r.Entry.Id != _currentEntry.Id))
             ClearDetail();
@@ -615,8 +549,7 @@ public partial class VaultShellView : UserControl
 
         // Direction is meaningless for a hand-arranged order.
         bool sortable = _settings.MediaSortMode != MediaSortMode.Custom;
-        MediaSortDirectionButton.IsEnabled = sortable;
-        MediaSortDirectionButton.Opacity = sortable ? 1 : 0.4;
+        MediaSortDirectionButton.Visibility = sortable ? Visibility.Visible : Visibility.Collapsed;
         MediaSortDirectionButton.Content = _settings.MediaSortDescending ? "\uE74B" : "\uE74A";
         MediaSortDirectionButton.ToolTip = _settings.MediaSortMode switch
         {
@@ -724,18 +657,6 @@ public partial class VaultShellView : UserControl
         RefreshMediaGallery();
     }
 
-    /// <summary>
-    /// The sidebar ENTRIES figure: everything the vault holds, media files included.
-    ///
-    /// This used to have two writers that disagreed. RefreshEntries overwrote it with the
-    /// number of rows in the All items list -- loose entries plus visible root folders --
-    /// so the same labelled number changed as you moved between sections, and whichever
-    /// ran last won. It also duplicated the count already shown on the All items row two
-    /// lines below it. One writer now, and it means what it says: it is the sum of the
-    /// ITEMS and MEDIA figures on the home screen.
-    /// </summary>
-    private void UpdateStats() => StatEntries.Text = _vault.Data.Entries.Count.ToString("N0");
-
     // ----------------------------------------------------- detail
 
     private void ClearDetail()
@@ -769,8 +690,7 @@ public partial class VaultShellView : UserControl
         NotesText.Text = entry.Notes;
 
         RefreshAttachments();
-        Anim.PopIn(DetailCard, 260);
-        Anim.StaggerIn(FieldsPanel, 40, 260, 10);
+        DetailScroller.ScrollToTop();
     }
 
     /// <summary>The one field label that gets the numbered word grid rather than a line of text.</summary>
@@ -797,10 +717,9 @@ public partial class VaultShellView : UserControl
     {
         var card = new Border
         {
-            Style = (Style)FindResource("Card"),
-            Background = (Brush)FindResource("Bg2"),
-            Padding = new Thickness(16, 12, 12, 12),
-            Margin = new Thickness(0, 0, 0, 10),
+            BorderBrush = (Brush)FindResource("Stroke"),
+            BorderThickness = new Thickness(0, 0, 0, 1),
+            Padding = new Thickness(0, 10, 0, 10),
         };
 
         var outer = new StackPanel();
@@ -814,9 +733,8 @@ public partial class VaultShellView : UserControl
         var labels = new StackPanel();
         labels.Children.Add(new TextBlock
         {
-            Text = field.Label.ToUpperInvariant(),
-            Style = (Style)FindResource("Overline"),
-            FontSize = 10,
+            Text = field.Label,
+            Style = (Style)FindResource("Caption"),
         });
         labels.Children.Add(new TextBlock
         {
@@ -863,9 +781,7 @@ public partial class VaultShellView : UserControl
             };
             copy.Click += (_, _) =>
             {
-                ClipboardHelper.CopySecret(field.Value, _settings.ClipboardClearSeconds);
-                copy.Content = "\uE73E";
-                copy.Foreground = (Brush)FindResource("Accent");
+                CopyField(field);
             };
             actions.Children.Add(copy);
         }
@@ -936,43 +852,53 @@ public partial class VaultShellView : UserControl
             .ToArray();
     }
 
+    /// <summary>
+    /// One field, as a row you can click to copy. That is what these are for almost every time
+    /// one is looked at, so it should not take aiming at a small icon. The seed phrase above is
+    /// the deliberate exception, where copying has to be an explicit choice.
+    /// </summary>
     private UIElement BuildFieldRow(EntryField field)
     {
         if (field.IsSecret && IsSeedPhrase(field) && !string.IsNullOrWhiteSpace(field.Value))
             return BuildSeedPhraseRow(field);
 
-        var card = new Border
+        bool hasValue = !string.IsNullOrEmpty(field.Value);
+
+        var row = new Border
         {
-            Style = (Style)FindResource("Card"),
-            Background = (Brush)FindResource("Bg2"),
-            Padding = new Thickness(16, 12, 12, 12),
-            Margin = new Thickness(0, 0, 0, 10),
+            Background = Brushes.Transparent,
+            BorderBrush = (Brush)FindResource("Stroke"),
+            BorderThickness = new Thickness(0, 0, 0, 1),
+            Padding = new Thickness(8, 9, 2, 9),
+            Margin = new Thickness(-8, 0, -2, 0),
+            Cursor = hasValue ? System.Windows.Input.Cursors.Hand : null,
+            ToolTip = hasValue ? "Click to copy" : null,
         };
 
         var grid = new Grid();
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
-        var textStack = new StackPanel();
-        textStack.Children.Add(new TextBlock { Text = field.Label.ToUpperInvariant(), Style = (Style)FindResource("Overline"), FontSize = 10 });
+        var textStack = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+        textStack.Children.Add(new TextBlock { Text = field.Label, Style = (Style)FindResource("Caption") });
 
         bool revealed = !field.IsSecret;
         var valueBlock = new TextBlock
         {
-            Text = field.IsSecret ? new string('\u2022', 10) : field.Value,
+            Text = field.IsSecret ? new string('\u2022', 10) : (hasValue ? field.Value : "Empty"),
             Style = (Style)FindResource("Body"),
-            Margin = new Thickness(0, 4, 0, 0),
+            Foreground = (Brush)FindResource(hasValue ? "Text" : "Faint"),
+            Margin = new Thickness(0, 2, 0, 0),
             FontFamily = field.IsSecret ? new FontFamily("Consolas") : (FontFamily)FindResource("UiFont"),
         };
         textStack.Children.Add(valueBlock);
-        Grid.SetColumn(textStack, 0);
         grid.Children.Add(textStack);
 
         var actions = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
 
-        if (field.IsSecret)
+        if (field.IsSecret && hasValue)
         {
-            var eye = new Button { Style = (Style)FindResource("IconButton"), Content = "\uE7B3", ToolTip = "Show / hide" };
+            var eye = new Button { Style = (Style)FindResource("IconButton"), Content = "\uE7B3", ToolTip = "Show or hide" };
             eye.Click += (_, _) =>
             {
                 revealed = !revealed;
@@ -982,22 +908,25 @@ public partial class VaultShellView : UserControl
             actions.Children.Add(eye);
         }
 
-        if (!string.IsNullOrEmpty(field.Value))
+        if (hasValue)
         {
             var copy = new Button { Style = (Style)FindResource("IconButton"), Content = "\uE8C8", ToolTip = "Copy" };
-            copy.Click += (_, _) =>
-            {
-                ClipboardHelper.CopySecret(field.Value, _settings.ClipboardClearSeconds);
-                copy.Content = "\uE73E";
-                copy.Foreground = (Brush)FindResource("Accent");
-            };
+            copy.Click += (_, _) => CopyField(field);
             actions.Children.Add(copy);
+
+            row.MouseEnter += (_, _) => row.Background = (Brush)FindResource("Bg1");
+            row.MouseLeave += (_, _) => row.Background = Brushes.Transparent;
+            row.MouseLeftButtonUp += (_, e) =>
+            {
+                if (e.OriginalSource is Button) return;
+                CopyField(field);
+            };
         }
 
         Grid.SetColumn(actions, 1);
         grid.Children.Add(actions);
-        card.Child = grid;
-        return card;
+        row.Child = grid;
+        return row;
     }
 
     private void ToggleFavorite_Click(object sender, RoutedEventArgs e)
@@ -1016,131 +945,94 @@ public partial class VaultShellView : UserControl
     private void RefreshAttachments()
     {
         AttachmentsPanel.Children.Clear();
+        AttachmentsEmpty.Visibility = _currentEntry is { Attachments.Count: > 0 }
+            ? Visibility.Collapsed
+            : Visibility.Visible;
         if (_currentEntry is null) return;
 
-        int i = 0;
         foreach (var att in _currentEntry.Attachments)
-        {
-            var tile = BuildAttachmentTile(att, () => OpenAttachment(att), () => DeleteAttachmentPrompt(att));
-            AttachmentsPanel.Children.Add(tile);
-            if (tile is FrameworkElement fe) Anim.SlideFadeIn(fe, 260, 12, i * 45);
-            i++;
-        }
+            AttachmentsPanel.Children.Add(BuildAttachmentRow(att));
     }
 
     /// <summary>
-    /// One attached file, with its name hidden until asked for.
+    /// One attached file. Click it to play or view it, right there.
     ///
-    /// The name is often the secret. "github-recovery-codes.txt" and
-    /// "client_secret_8384...apps.googleusercontent.com.txt" say precisely what they are
-    /// and roughly how valuable they are, to anyone who glances at the screen. A vault that
-    /// hides the contents and then prints the filename underneath has given away the part
-    /// that mattered for a shoulder-surfer.
-    ///
-    /// So a tile shows what kind of file it is and how big, and nothing else, until it is
-    /// clicked. Clicking opens it out: the real name, and the two things you might want to
-    /// do with it. Deleting used to be on a right-click, which is not an option anybody
-    /// finds; it is a button now.
+    /// Its name stays hidden until the pointer is on it. The name is often the secret:
+    /// "github-recovery-codes.txt" says what it is and roughly how valuable, to anyone glancing
+    /// at the screen. So at rest a row says what kind of file it is and how big.
     /// </summary>
-    private Border BuildAttachmentTile(AttachmentRef att, Action onOpen, Action onDelete)
+    private Border BuildAttachmentRow(AttachmentRef att)
     {
-        var tile = new Border
+        bool playable = IsImage(att) || IsVideo(att) || IsAudio(att);
+
+        var row = new Border
         {
-            Background = (Brush)FindResource("Bg2"),
-            BorderBrush = (Brush)FindResource("GlassStroke"),
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(12),
-            Width = 156,
-            Margin = new Thickness(0, 0, 10, 10),
-            Padding = new Thickness(12),
+            Background = Brushes.Transparent,
+            BorderBrush = (Brush)FindResource("Stroke"),
+            BorderThickness = new Thickness(0, 0, 0, 1),
+            Padding = new Thickness(8, 7, 2, 7),
+            Margin = new Thickness(-8, 0, -2, 0),
             Cursor = System.Windows.Input.Cursors.Hand,
+            ToolTip = playable ? "Click to open" : "Click to save a decrypted copy",
         };
 
-        var sp = new StackPanel();
+        var grid = new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(28) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
-        sp.Children.Add(new TextBlock
+        grid.Children.Add(new TextBlock
         {
             Text = MediaIcon(att),
             FontFamily = (FontFamily)FindResource("IconFont"),
-            FontSize = 22,
-            Foreground = (Brush)FindResource("Accent"),
+            FontSize = 15,
+            Foreground = (Brush)FindResource(playable ? "Accent" : "Muted"),
+            VerticalAlignment = VerticalAlignment.Center,
         });
 
-        // Collapsed: the kind of thing it is, not which thing it is.
-        var name = new TextBlock
+        string hiddenLabel = $"{KindOfFile(att)}  \u00B7  {FormatSize(att.SizeBytes)}";
+        var label = new TextBlock
         {
-            Text = KindOfFile(att),
-            Style = (Style)FindResource("Caption"),
-            Margin = new Thickness(0, 8, 0, 0),
+            Text = hiddenLabel,
+            Style = (Style)FindResource("Body"),
+            VerticalAlignment = VerticalAlignment.Center,
             TextTrimming = TextTrimming.CharacterEllipsis,
             TextWrapping = TextWrapping.NoWrap,
         };
-        sp.Children.Add(name);
+        Grid.SetColumn(label, 1);
+        grid.Children.Add(label);
 
-        sp.Children.Add(new TextBlock
-        {
-            Text = FormatSize(att.SizeBytes),
-            Style = (Style)FindResource("Caption"),
-            FontSize = 11,
-        });
+        var actions = new StackPanel { Orientation = Orientation.Horizontal };
 
-        var buttons = new StackPanel
+        var save = new Button { Style = (Style)FindResource("IconButton"), Content = "\uE896", ToolTip = "Save a decrypted copy" };
+        save.Click += (_, _) => ExportAttachmentToDisk(att);
+        actions.Children.Add(save);
+
+        var remove = new Button { Style = (Style)FindResource("IconButton"), Content = "\uE74D", ToolTip = "Delete this file" };
+        remove.Click += (_, _) => DeleteAttachmentPrompt(att);
+        actions.Children.Add(remove);
+
+        Grid.SetColumn(actions, 2);
+        grid.Children.Add(actions);
+        row.Child = grid;
+
+        row.MouseEnter += (_, _) =>
         {
-            Orientation = Orientation.Horizontal,
-            Margin = new Thickness(0, 10, 0, 0),
-            Visibility = Visibility.Collapsed,
+            row.Background = (Brush)FindResource("Bg1");
+            label.Text = att.FileName;
+        };
+        row.MouseLeave += (_, _) =>
+        {
+            row.Background = Brushes.Transparent;
+            label.Text = hiddenLabel;
+        };
+        row.MouseLeftButtonUp += (_, e) =>
+        {
+            if (e.OriginalSource is Button) return;
+            OpenAttachment(att);
         };
 
-        var open = new Button
-        {
-            Style = (Style)FindResource("GhostButton"),
-            Content = "Open",
-            Height = 30,
-            MinWidth = 62,
-            FontSize = 11,
-            Padding = new Thickness(10, 0, 10, 0),
-            Margin = new Thickness(0, 0, 6, 0),
-        };
-        open.Click += (_, args) => { args.Handled = true; onOpen(); };
-        buttons.Children.Add(open);
-
-        var remove = new Button
-        {
-            Style = (Style)FindResource("GhostButton"),
-            Content = "Delete",
-            Height = 30,
-            MinWidth = 62,
-            FontSize = 11,
-            Padding = new Thickness(10, 0, 10, 0),
-            Foreground = (Brush)FindResource("Danger"),
-            BorderBrush = (Brush)FindResource("Danger"),
-        };
-        remove.Click += (_, args) => { args.Handled = true; onDelete(); };
-        buttons.Children.Add(remove);
-
-        sp.Children.Add(buttons);
-        tile.Child = sp;
-
-        bool open_ = false;
-        tile.ToolTip = "Click to show what this is";
-
-        tile.MouseLeftButtonUp += (_, _) =>
-        {
-            open_ = !open_;
-
-            name.Text = open_ ? att.FileName : KindOfFile(att);
-            name.TextWrapping = open_ ? TextWrapping.Wrap : TextWrapping.NoWrap;
-            name.Foreground = (Brush)FindResource(open_ ? "Text" : "Muted");
-
-            buttons.Visibility = open_ ? Visibility.Visible : Visibility.Collapsed;
-            tile.Width = open_ ? 232 : 156;
-            tile.BorderBrush = (Brush)FindResource(open_ ? "Accent" : "GlassStroke");
-            tile.ToolTip = open_ ? null : "Click to show what this is";
-
-            if (open_) Anim.SlideFadeIn(buttons, 180, 6);
-        };
-
-        return tile;
+        return row;
     }
 
     /// <summary>A description of the kind of file, standing in for its name while hidden.</summary>
@@ -1178,7 +1070,7 @@ public partial class VaultShellView : UserControl
         {
             Title = "Add file to vault",
             Multiselect = true,
-            Filter = "All supported|*.png;*.jpg;*.jpeg;*.gif;*.bmp;*.webp;*.mp4;*.mov;*.mkv;*.webm;*.avi;*.pdf;*.txt|All files|*.*",
+            Filter = "All files|*.*",
         };
         if (dlg.ShowDialog() != true) return;
 
@@ -1213,7 +1105,7 @@ public partial class VaultShellView : UserControl
         var cat = ResolveMediaCategory();
         if (cat is null)
         {
-            MessageBox.Show("No media section found. Create a section and mark it as media, or use the default Media vault.", "Lockwell");
+            MessageBox.Show("There is no Files section in this vault. Create a section and mark it as a files section.", "Lockwell");
             return;
         }
 
@@ -1226,7 +1118,7 @@ public partial class VaultShellView : UserControl
         if (dlg.ShowDialog() != true) return;
 
         var plan = new MediaImportPlan();
-        foreach (string path in dlg.FileNames.Where(IsMediaFilePath))
+        foreach (string path in dlg.FileNames.Where(IsImportableFile))
         {
             plan.Files.Add(new MediaFileImport
             {
@@ -1238,7 +1130,7 @@ public partial class VaultShellView : UserControl
 
         if (plan.Files.Count == 0)
         {
-            MessageBox.Show("No supported photos, videos, or audio files were selected.", "Lockwell");
+            MessageBox.Show("None of those files could be added.", "Lockwell");
             return;
         }
 
@@ -1284,7 +1176,7 @@ public partial class VaultShellView : UserControl
         var cat = ResolveMediaCategory();
         if (cat is null) return;
 
-        var dlg = new OpenFolderDialog { Title = "Upload a folder of photos, videos, or audio" };
+        var dlg = new OpenFolderDialog { Title = "Add a folder to the vault" };
         if (dlg.ShowDialog() != true) return;
 
         var plan = new MediaImportPlan();
@@ -1292,7 +1184,7 @@ public partial class VaultShellView : UserControl
 
         if (plan.Files.Count == 0 && plan.Folders.Count == 0)
         {
-            MessageBox.Show("No supported photos, videos, or audio files were found in that folder.", "Lockwell");
+            MessageBox.Show("There are no files in that folder.", "Lockwell");
             return;
         }
 
@@ -1655,18 +1547,8 @@ public partial class VaultShellView : UserControl
     {
         if (_mediaDropHighlight is null) return;
 
-        if (_mediaDropHighlight.Tag is MediaFolder folder)
-        {
-            _mediaDropHighlight.BorderBrush = folder.IsFavorite
-                ? (Brush)FindResource("Warning")
-                : FolderKindBrush(folder.Kind);
-            _mediaDropHighlight.BorderThickness = new Thickness(folder.IsFavorite ? 1.5 : 1);
-        }
-        else
-        {
-            _mediaDropHighlight.BorderBrush = (Brush)FindResource("GlassStroke");
-            _mediaDropHighlight.BorderThickness = new Thickness(1);
-        }
+        _mediaDropHighlight.BorderBrush = TileBorder(_mediaDropHighlight.Tag);
+        _mediaDropHighlight.BorderThickness = new Thickness(1);
 
         _mediaDropHighlight = null;
     }
@@ -1783,14 +1665,14 @@ public partial class VaultShellView : UserControl
         var cat = ResolveMediaCategory();
         if (cat is null)
         {
-            MessageBox.Show("No media section found.", "Lockwell");
+            MessageBox.Show("There is no Files section in this vault.", "Lockwell");
             return;
         }
 
         var plan = BuildDropImportPlan(cat.Id, paths, parentFolderId);
         if (plan.Files.Count == 0 && plan.Folders.Count == 0)
         {
-            MessageBox.Show("No supported photos, videos, or audio files were found in the drop.", "Lockwell");
+            MessageBox.Show("There were no files in what you dropped.", "Lockwell");
             return;
         }
 
@@ -1855,6 +1737,9 @@ public partial class VaultShellView : UserControl
     {
         MediaBreadcrumbHost.Children.Clear();
 
+        var rootCategory = ResolveMediaCategory();
+        MediaTitle.Text = rootCategory is null ? "Files" : DisplayName(rootCategory);
+
         if (_currentMediaFolderId is null)
         {
             MediaBreadcrumbHost.Visibility = Visibility.Collapsed;
@@ -1868,8 +1753,10 @@ public partial class VaultShellView : UserControl
             return;
         }
 
+        MediaTitle.Text = current.Name;
         MediaBreadcrumbHost.Visibility = Visibility.Visible;
-        MediaBreadcrumbHost.Children.Add(CreateBreadcrumbButton("Media vault", null));
+        var category = ResolveMediaCategory();
+        MediaBreadcrumbHost.Children.Add(CreateBreadcrumbButton(category is null ? "Files" : DisplayName(category), null));
 
         foreach (var folder in BuildFolderAncestorChain(_vault.Data.MediaFolders, current))
         {
@@ -1935,10 +1822,15 @@ public partial class VaultShellView : UserControl
         };
 
 
-    private static bool IsMediaFilePath(string path)
+    /// <summary>
+    /// Any file can go in the vault: a project archive belongs here as much as a photo. Only
+    /// the two files Windows scatters through every folder are left behind.
+    /// </summary>
+    private static bool IsImportableFile(string path)
     {
-        string ext = Path.GetExtension(path).ToLowerInvariant();
-        return IsImageExtension(ext) || IsVideoExtension(ext) || IsAudioExtension(ext);
+        string name = Path.GetFileName(path);
+        return !name.Equals("desktop.ini", StringComparison.OrdinalIgnoreCase)
+               && !name.Equals("Thumbs.db", StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool IsImageExtension(string ext) =>
@@ -1954,6 +1846,7 @@ public partial class VaultShellView : UserControl
     {
         _galleryGeneration++; // abandon thumbnail loads started for the previous view
         UpdateMediaSortUi();
+        UpdateMediaViewToggle();
         MediaGrid.Children.Clear();
         MediaFoldersGrid.Children.Clear();
         var cat = ResolveMediaCategory();
@@ -2006,7 +1899,14 @@ public partial class VaultShellView : UserControl
                 .Where(f => !_settings.HideNsfwMediaFolders || !f.IsNsfw)
                 .Where(f => FolderMatchesMediaQuery(f, query, allInCategory)));
 
+            // Hiding an NSFW folder has to hide what is inside it too. Search used to go round
+            // the folder and list its files anyway.
+            var hidden = _settings.HideNsfwMediaFolders
+                ? VaultSearch.HiddenFolderIds(_vault.Data)
+                : new HashSet<string>();
+
             items = SortMediaEntries(allInCategory
+                .Where(e => e.MediaFolderId is null || !hidden.Contains(e.MediaFolderId))
                 .Where(e => MediaEntryMatchesQuery(e, query)));
         }
         else
@@ -2019,14 +1919,10 @@ public partial class VaultShellView : UserControl
         }
 
         MediaFoldersHeader.Visibility = folders.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
-        int fi = 0;
         foreach (var folder in folders)
         {
             int count = CountFilesInFolderTree(folder.Id);
-            var tile = BuildFolderTile(folder, count);
-            MediaFoldersGrid.Children.Add(tile);
-            Anim.PopIn(tile, 260, fi * 45);
-            fi++;
+            MediaFoldersGrid.Children.Add(BuildFolderTile(folder, count));
         }
 
         int folderCount = folders.Count;
@@ -2038,7 +1934,7 @@ public partial class VaultShellView : UserControl
         else
         {
             MediaCount.Text = atRoot
-                ? $"{folderCount} folder{(folderCount == 1 ? "" : "s")}, {items.Count} loose file{(items.Count == 1 ? "" : "s")}"
+                ? $"{folderCount} folder{(folderCount == 1 ? "" : "s")}, {items.Count} file{(items.Count == 1 ? "" : "s")}"
                 : folders.Count > 0
                     ? $"{folders.Count} subfolder{(folders.Count == 1 ? "" : "s")}, {items.Count} file{(items.Count == 1 ? "" : "s")}"
                     : items.Count == 1 ? "1 file" : $"{items.Count} files";
@@ -2054,11 +1950,10 @@ public partial class VaultShellView : UserControl
         if (hiddenNsfw > 0)
         {
             MediaCount.Text += hiddenNsfw == 1
-                ? " (1 NSFW folder hidden in Settings)"
-                : $" ({hiddenNsfw} NSFW folders hidden in Settings)";
+                ? ", 1 hidden by Settings"
+                : $", {hiddenNsfw} hidden by Settings";
         }
 
-        int i = 0;
         foreach (var entry in items)
         {
             var att = entry.Attachments.FirstOrDefault();
@@ -2066,12 +1961,12 @@ public partial class VaultShellView : UserControl
 
             var tile = BuildMediaTile(entry, att);
             MediaGrid.Children.Add(tile);
-            Anim.PopIn(tile, 280, i * 50);
-            i++;
 
             if (IsImage(att))
                 _ = LoadThumbnailAsync(tile, att, _galleryGeneration);
         }
+
+        RefreshSelectionUi();
     }
 
     private static bool MediaEntryMatchesQuery(VaultEntry entry, string query)
@@ -2087,176 +1982,6 @@ public partial class VaultShellView : UserControl
         if (entries.Any(e => e.MediaFolderId == folder.Id && MediaEntryMatchesQuery(e, query))) return true;
         return _vault.Data.MediaFolders
             .Any(f => f.ParentFolderId == folder.Id && FolderMatchesMediaQuery(f, query, entries));
-    }
-
-    private Border BuildFolderTile(MediaFolder folder, int fileCount)
-    {
-        var kindBrush = FolderKindBrush(folder.Kind);
-        var tile = new Border
-        {
-            Width = 180,
-            Height = 160,
-            Margin = new Thickness(0, 0, 14, 14),
-            CornerRadius = new CornerRadius(16),
-            Background = new SolidColorBrush(FolderTintColor(folder.Kind)),
-            BorderBrush = folder.IsFavorite ? (Brush)FindResource("Warning") : kindBrush,
-            BorderThickness = new Thickness(folder.IsFavorite ? 1.5 : 1),
-            Cursor = System.Windows.Input.Cursors.Hand,
-            ClipToBounds = true,
-            Tag = folder,
-            AllowDrop = true,
-        };
-        tile.DragOver += MediaFolderTile_DragOver;
-        tile.DragLeave += MediaFolderTile_DragLeave;
-        tile.Drop += MediaFolderTile_Drop;
-
-        var grid = new Grid();
-        var icon = new TextBlock
-        {
-            Text = FolderKindIcon(folder.Kind),
-            FontFamily = (FontFamily)FindResource("IconFont"),
-            FontSize = 36,
-            Foreground = kindBrush,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, 0, 0, 24),
-        };
-        grid.Children.Add(icon);
-
-        if (folder.IsFavorite)
-        {
-            grid.Children.Add(new TextBlock
-            {
-                Text = "\uE735",
-                FontFamily = (FontFamily)FindResource("IconFont"),
-                FontSize = 14,
-                Foreground = (Brush)FindResource("Warning"),
-                HorizontalAlignment = HorizontalAlignment.Left,
-                VerticalAlignment = VerticalAlignment.Top,
-                Margin = new Thickness(10, 8, 0, 0),
-            });
-        }
-
-        if (folder.IsNsfw)
-        {
-            grid.Children.Add(new TextBlock
-            {
-                Text = "NSFW",
-                Foreground = (Brush)FindResource("Danger"),
-                FontSize = 9,
-                FontWeight = FontWeights.Bold,
-                HorizontalAlignment = HorizontalAlignment.Right,
-                VerticalAlignment = VerticalAlignment.Bottom,
-                Margin = new Thickness(0, 0, 10, 52),
-            });
-        }
-
-        var caption = new Border
-        {
-            VerticalAlignment = VerticalAlignment.Bottom,
-            Background = new SolidColorBrush(Color.FromArgb(0xCC, 0x06, 0x08, 0x0D)),
-            CornerRadius = new CornerRadius(0, 0, 16, 16),
-            Padding = new Thickness(12, 8, 12, 10),
-        };
-        var capStack = new StackPanel();
-        capStack.Children.Add(new TextBlock
-        {
-            Text = folder.Name,
-            Foreground = (Brush)FindResource("Text"),
-            FontSize = 12,
-            FontWeight = FontWeights.SemiBold,
-            TextTrimming = TextTrimming.CharacterEllipsis,
-        });
-        capStack.Children.Add(new TextBlock
-        {
-            Text = fileCount == 1 ? "1 file" : $"{fileCount} files",
-            Foreground = (Brush)FindResource("Muted"),
-            FontSize = 11,
-            Margin = new Thickness(0, 2, 0, 0),
-        });
-        caption.Child = capStack;
-        grid.Children.Add(caption);
-
-        var actions = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            HorizontalAlignment = HorizontalAlignment.Right,
-            VerticalAlignment = VerticalAlignment.Top,
-            Margin = new Thickness(0, 6, 6, 0),
-        };
-        var editBtn = new Button
-        {
-            Style = (Style)FindResource("IconButton"),
-            Content = "\uE70F",
-            FontSize = 13,
-            ToolTip = "Edit folder",
-            Opacity = 0.85,
-        };
-        editBtn.Click += (_, e) =>
-        {
-            e.Handled = true;
-            OpenEditMediaFolder(folder);
-        };
-        var deleteBtn = new Button
-        {
-            Style = (Style)FindResource("IconButton"),
-            Content = "\uE74D",
-            FontSize = 13,
-            ToolTip = "Delete folder",
-            Opacity = 0.85,
-        };
-        deleteBtn.Click += (_, e) =>
-        {
-            e.Handled = true;
-            DeleteMediaFolder(folder);
-        };
-        var compressFolderBtn = new Button
-        {
-            Style = (Style)FindResource("IconButton"),
-            // Escaped, not a literal glyph: a pasted Segoe MDL2 character can be
-            // stripped in transit and the button then renders completely blank.
-            Content = "\uE73F",
-            FontSize = 13,
-            ToolTip = "Compress every file in this folder",
-            Opacity = 0.85,
-        };
-        compressFolderBtn.Click += (_, e) =>
-        {
-            e.Handled = true;
-            BeginCompressFolder(folder);
-        };
-
-        var exportBtn = new Button
-        {
-            Style = (Style)FindResource("IconButton"),
-            Content = "",
-            FontSize = 13,
-            ToolTip = "Export this folder out of the vault",
-            Opacity = 0.85,
-        };
-        exportBtn.Click += (_, e) =>
-        {
-            e.Handled = true;
-            ExportMediaFolder(folder);
-        };
-
-        actions.Children.Add(editBtn);
-        actions.Children.Add(exportBtn);
-        actions.Children.Add(compressFolderBtn);
-        actions.Children.Add(deleteBtn);
-        grid.Children.Add(actions);
-
-        tile.Child = grid;
-
-        AttachMediaDragSource(tile, MediaFolderDragFormat, folder.Id);
-
-        tile.MouseLeftButtonUp += (_, e) =>
-        {
-            if (_suppressTileClick) return; // this press turned into a drag
-            if (e.OriginalSource is Button) return;
-            OpenMediaFolder(folder.Id);
-        };
-        return tile;
     }
 
     private void MediaFolderEditButton_Click(object sender, RoutedEventArgs e)
@@ -2369,7 +2094,6 @@ public partial class VaultShellView : UserControl
             }
 
             _vault.Save();
-            UpdateStats();
             RefreshCategories();
             CloseOverlay();
             RefreshMediaGallery();
@@ -2386,7 +2110,7 @@ public partial class VaultShellView : UserControl
             Background = (Brush)FindResource("Bg2"),
             BorderBrush = (Brush)FindResource("GlassStroke"),
             BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(10),
+            CornerRadius = new CornerRadius(8),
             Padding = new Thickness(10, 8, 10, 8),
             Margin = new Thickness(0, 0, 0, 8),
             Tag = entry,
@@ -2476,10 +2200,13 @@ public partial class VaultShellView : UserControl
     private void DeleteMediaFolder(MediaFolder folder)
     {
         int count = CountFilesInFolderTree(folder.Id);
-        string msg = count > 0
-            ? $"Delete folder \"{folder.Name}\" and all {count} file(s) inside? This cannot be undone."
-            : $"Delete empty folder \"{folder.Name}\"?";
-        if (MessageBox.Show(msg, "Lockwell", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
+        string body = count switch
+        {
+            0 => "This folder is empty.",
+            1 => "1 file inside will be permanently removed from the vault. This cannot be undone.",
+            _ => $"{count} files inside will be permanently removed from the vault. This cannot be undone.",
+        };
+        if (!MessageBox.Confirm($"Delete \"{folder.Name}\"?", body, "Delete", danger: true))
             return;
 
         DeleteMediaFolderTree(folder);
@@ -2487,7 +2214,6 @@ public partial class VaultShellView : UserControl
             !_vault.Data.MediaFolders.Any(f => f.Id == _currentMediaFolderId))
             _currentMediaFolderId = folder.ParentFolderId;
         _vault.Save();
-        UpdateStats();
         RefreshCategories();
         RefreshMediaGallery();
     }
@@ -2504,173 +2230,6 @@ public partial class VaultShellView : UserControl
         }
 
         _vault.Data.MediaFolders.Remove(folder);
-    }
-
-    private Border BuildMediaTile(VaultEntry entry, AttachmentRef att)
-    {
-        var tile = new Border
-        {
-            Width = 180,
-            Height = 200,
-            Margin = new Thickness(0, 0, 14, 14),
-            CornerRadius = new CornerRadius(16),
-            Background = (Brush)FindResource("Bg2"),
-            BorderBrush = (Brush)FindResource("GlassStroke"),
-            BorderThickness = new Thickness(1),
-            Cursor = System.Windows.Input.Cursors.Hand,
-            Tag = entry,
-            ClipToBounds = true,
-            AllowDrop = true,
-        };
-        tile.DragOver += MediaEntryTile_DragOver;
-        tile.DragLeave += MediaEntryTile_DragLeave;
-        tile.Drop += MediaEntryTile_Drop;
-
-        // A WPF Border does NOT clip its child to CornerRadius, so the caption bar's
-        // corners used to overhang the tile's rounded edge and show a visible sliver.
-        // Clip the content to the tile's inner rounded rect (size minus the 1px border).
-        var grid = new Grid
-        {
-            Clip = new RectangleGeometry(new Rect(0, 0, 178, 198), 15, 15),
-        };
-        var icon = new TextBlock
-        {
-            Name = "FallbackIcon",
-            Text = MediaIcon(att),
-            FontFamily = (FontFamily)FindResource("IconFont"),
-            FontSize = 32,
-            Foreground = (Brush)FindResource("Accent"),
-            HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Center,
-        };
-        var img = new Image { Stretch = Stretch.UniformToFill, Visibility = Visibility.Collapsed };
-        grid.Children.Add(icon);
-        grid.Children.Add(img);
-
-        // On a linked device. Media is what actually gets sent, so the mark belongs here
-        // as much as on the entry list -- without it there is no way to look at a folder
-        // and tell what the phone already has.
-        if (entry.IsSyncedAnywhere)
-        {
-            grid.Children.Add(new Border
-            {
-                HorizontalAlignment = HorizontalAlignment.Left,
-                VerticalAlignment = VerticalAlignment.Top,
-                Margin = new Thickness(8, 8, 0, 0),
-                Padding = new Thickness(6, 2, 6, 2),
-                CornerRadius = new CornerRadius(999),
-                Background = (Brush)FindResource("Accent"),
-                ToolTip = entry.SyncedToDevices.Count == 1
-                    ? "On one linked device"
-                    : $"On {entry.SyncedToDevices.Count} linked devices",
-                Child = new TextBlock
-                {
-                    Text = "",
-                    FontFamily = (FontFamily)FindResource("IconFont"),
-                    FontSize = 9,
-                    Foreground = (Brush)FindResource("Bg0"),
-                },
-            });
-        }
-
-        // Gradient rather than a flat bar: the filename stays readable over bright
-        // thumbnails without a hard edge cutting across the image.
-        var caption = new Border
-        {
-            VerticalAlignment = VerticalAlignment.Bottom,
-            Background = new LinearGradientBrush(
-                Color.FromArgb(0x00, 0x06, 0x08, 0x0D),
-                Color.FromArgb(0xF0, 0x06, 0x08, 0x0D),
-                new Point(0.5, 0),
-                new Point(0.5, 1)),
-            Padding = new Thickness(12, 18, 12, 10),
-        };
-        caption.Child = new TextBlock
-        {
-            Text = entry.Title,
-            Foreground = (Brush)FindResource("Text"),
-            FontSize = 12,
-            TextTrimming = TextTrimming.CharacterEllipsis,
-        };
-        grid.Children.Add(caption);
-
-        // Tile actions reveal on hover so the grid stays clean at rest.
-        var actions = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            HorizontalAlignment = HorizontalAlignment.Right,
-            VerticalAlignment = VerticalAlignment.Top,
-            Margin = new Thickness(0, 6, 6, 0),
-            Opacity = RestingActionOpacity,
-        };
-
-        var renameBtn = new Button
-        {
-            Style = (Style)FindResource("IconButton"),
-            Content = "\uE8AC",
-            FontSize = 13,
-            ToolTip = "Rename",
-            Opacity = 0.9,
-        };
-        renameBtn.Click += (_, e) =>
-        {
-            e.Handled = true;
-            RenameMediaEntry(entry);
-        };
-
-        var deleteBtn = new Button
-        {
-            Style = (Style)FindResource("IconButton"),
-            Content = "\uE74D",
-            FontSize = 13,
-            ToolTip = "Delete",
-            Opacity = 0.9,
-        };
-        deleteBtn.Click += (_, e) =>
-        {
-            e.Handled = true;
-            DeleteMediaEntry(entry);
-        };
-
-        actions.Children.Add(renameBtn);
-
-        if (IsImage(att) || IsAudio(att) || IsVideo(att))
-        {
-            var compressBtn = new Button
-            {
-                Style = (Style)FindResource("IconButton"),
-                Content = "\uE73F",
-                FontSize = 13,
-                ToolTip = "Compress",
-                Opacity = 0.9,
-            };
-            compressBtn.Click += (_, e) =>
-            {
-                e.Handled = true;
-                BeginCompress(entry);
-            };
-            actions.Children.Add(compressBtn);
-        }
-
-        actions.Children.Add(deleteBtn);
-        grid.Children.Add(actions);
-
-        // Visible at rest, brighter on hover. Fully hiding these until mouse-over meant
-        // people never discovered the actions existed at all.
-        tile.MouseEnter += (_, _) => Anim.FadeTo(actions, 1, 130);
-        tile.MouseLeave += (_, _) => Anim.FadeTo(actions, RestingActionOpacity, 130);
-
-        tile.Child = grid;
-
-        AttachMediaDragSource(tile, MediaEntryDragFormat, entry.Id);
-
-        tile.MouseLeftButtonUp += (_, e) =>
-        {
-            if (_suppressTileClick) return; // this press turned into a drag
-            if (e.OriginalSource is Button) return;
-            OpenMediaItem(entry, att);
-        };
-        return tile;
     }
 
     /// <summary>
@@ -2810,8 +2369,8 @@ public partial class VaultShellView : UserControl
 
     private void DeleteMediaEntry(VaultEntry entry)
     {
-        if (MessageBox.Show($"Delete \"{entry.Title}\" from the vault?", "Lockwell",
-                MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
+        if (!MessageBox.Confirm($"Delete \"{entry.Title}\"?",
+                "It will be permanently removed from the vault. This cannot be undone.", "Delete", danger: true))
             return;
 
         foreach (var att in entry.Attachments)
@@ -2821,7 +2380,6 @@ public partial class VaultShellView : UserControl
         }
         _vault.Data.Entries.Remove(entry);
         _vault.Save();
-        UpdateStats();
         RefreshCategories();
         RefreshCurrentView();
     }
@@ -2829,7 +2387,9 @@ public partial class VaultShellView : UserControl
     private void OpenMediaItem(VaultEntry entry, AttachmentRef att)
     {
         BuildMediaViewerPlaylist(entry);
-        _viewerIndex = _viewerPlaylist.FindIndex(x => x.Entry.Id == entry.Id);
+        // Match the file as well as the item. An item holding two videos used to play the
+        // first one whichever you clicked.
+        _viewerIndex = _viewerPlaylist.FindIndex(x => x.Entry.Id == entry.Id && x.Attachment.Id == att.Id);
         if (_viewerIndex < 0)
         {
             _viewerPlaylist.Clear();
@@ -3253,7 +2813,7 @@ public partial class VaultShellView : UserControl
             {
                 Style = (Style)FindResource("GhostButton"),
                 Content = device.Name,
-                Height = 42,
+                Height = 34,
                 HorizontalContentAlignment = HorizontalAlignment.Left,
                 Padding = new Thickness(14, 0, 14, 0),
                 Margin = new Thickness(0, 0, 0, 8),
@@ -3321,6 +2881,58 @@ public partial class VaultShellView : UserControl
         }
     }
 
+    private DispatcherTimer? _viewerChromeTimer;
+
+    private void ImageViewer_PreviewMouseMove(object sender, System.Windows.Input.MouseEventArgs e) =>
+        ShowViewerChrome();
+
+    /// <summary>
+    /// The controls fade when the mouse rests, so a picture or video gets the whole window.
+    /// They stay put while the pointer is on them, while the speed popup is open, and while a
+    /// video is paused, because a paused video with no controls looks like a frozen app.
+    /// </summary>
+    private void ShowViewerChrome()
+    {
+        foreach (var bar in new FrameworkElement[] { ViewerTopBar, MediaTransportBar, ViewerPrevButton, ViewerNextButton })
+        {
+            bar.BeginAnimation(OpacityProperty, null);
+            bar.Opacity = 1;
+        }
+
+        _viewerChromeTimer ??= CreateViewerChromeTimer();
+        _viewerChromeTimer.Stop();
+        _viewerChromeTimer.Start();
+    }
+
+    private DispatcherTimer CreateViewerChromeTimer()
+    {
+        var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2.4) };
+        timer.Tick += (_, _) =>
+        {
+            timer.Stop();
+            if (ImageViewer.Visibility != Visibility.Visible) return;
+
+            bool busy = ViewerSpeedPopup.IsOpen
+                        || ViewerTopBar.IsMouseOver
+                        || MediaTransportBar.IsMouseOver
+                        || _mediaSeekDragging
+                        || (MediaTransportBar.Visibility == Visibility.Visible && !_mediaPlaying);
+            if (busy)
+            {
+                timer.Start();
+                return;
+            }
+
+            foreach (var bar in new UIElement[] { ViewerTopBar, ViewerPrevButton, ViewerNextButton })
+                Anim.FadeTo(bar, 0, 220);
+
+            // Audio has nothing else on screen to look at, so its controls stay.
+            if (ViewerMedia.Visibility == Visibility.Visible)
+                Anim.FadeTo(MediaTransportBar, 0, 220);
+        };
+        return timer;
+    }
+
     /// <summary>
     /// True when a click landed on the dark backdrop rather than on the media itself
     /// or any of the viewer's controls.
@@ -3335,6 +2947,7 @@ public partial class VaultShellView : UserControl
                 ReferenceEquals(node, ViewerMedia) ||
                 ReferenceEquals(node, AudioPlayerCard) ||
                 ReferenceEquals(node, MediaTransportBar) ||
+                ReferenceEquals(node, ViewerTopBar) ||
                 ReferenceEquals(node, PhotoCaptionPanel) ||
                 node is System.Windows.Controls.Primitives.ButtonBase or Slider)
             {
@@ -3798,8 +3411,9 @@ public partial class VaultShellView : UserControl
     private void DeleteAttachmentPrompt(AttachmentRef att)
     {
         if (_currentEntry is null) return;
-        if (MessageBox.Show($"Remove \"{att.FileName}\" from the vault?", "Lockwell",
-                MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
+        if (!MessageBox.Confirm("Delete this file?",
+                $"\"{att.FileName}\" will be permanently removed from the vault. This cannot be undone.",
+                "Delete", danger: true))
             return;
 
         _vault.DeleteAttachment(att);
@@ -3910,10 +3524,10 @@ public partial class VaultShellView : UserControl
                 _vault.Data.Entries.Add(working);
             }
             _vault.Save();
-            UpdateStats();
             RefreshCategories();
             CloseOverlay();
             if (_mediaMode) RefreshMediaGallery();
+            else if (_settingsMode || _devicesMode || _storageMode) GoToEntry(working);
             else { RefreshEntries(); ShowDetail(working); }
         };
 
@@ -3944,14 +3558,13 @@ public partial class VaultShellView : UserControl
     private void DeleteEntry_Click(object sender, RoutedEventArgs e)
     {
         if (_currentEntry is null) return;
-        if (MessageBox.Show($"Delete \"{_currentEntry.Title}\"? This cannot be undone.", "Lockwell",
-                MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
+        if (!MessageBox.Confirm($"Delete \"{_currentEntry.Title}\"?",
+                "It will be permanently removed from the vault. This cannot be undone.", "Delete", danger: true))
             return;
 
         foreach (var att in _currentEntry.Attachments) _vault.DeleteAttachment(att);
         _vault.Data.Entries.Remove(_currentEntry);
         _vault.Save();
-        UpdateStats();
         RefreshCategories();
         ClearDetail();
         RefreshEntries();
@@ -3997,201 +3610,6 @@ public partial class VaultShellView : UserControl
         ShowOverlay();
     }
 
-    private void Settings_Click(object sender, RoutedEventArgs e)
-    {
-        OverlayTitle.Text = "Settings";
-        OverlayBody.Children.Clear();
-        _fieldEditors.Clear();
-
-        var capture = AddToggle("Hide window from screen capture", _settings.ExcludeFromCapture);
-        OverlayBody.Children.Add(new TextBlock { Text = "Window appears blank in OBS, Discord share, and recorders.", Style = (Style)FindResource("Caption"), Margin = new Thickness(0, 0, 0, 10) });
-        var preflight = AddToggle("Run environment scan on launch", _settings.RunPreflight);
-        var blurMedia = AddToggle("Blur photos until opened", _settings.BlurMediaThumbnails);
-        OverlayBody.Children.Add(new TextBlock
-        {
-            Text = "Thumbnails stay blurred in the gallery. Full image shows only when you open it.",
-            Style = (Style)FindResource("Caption"),
-            Margin = new Thickness(0, 0, 0, 10),
-        });
-        var hideNsfw = AddToggle("Hide NSFW media folders", _settings.HideNsfwMediaFolders);
-        OverlayBody.Children.Add(new TextBlock
-        {
-            Text = "Folders marked NSFW stay hidden in the media gallery. They never appear in All items.",
-            Style = (Style)FindResource("Caption"),
-            Margin = new Thickness(0, 0, 0, 10),
-        });
-        var lockOnMinimize = AddToggle("Lock when minimized", _settings.LockOnMinimize);
-        OverlayBody.Children.Add(new TextBlock
-        {
-            Text = "Locks immediately when you minimize the window. Turn off if you need the vault open while using another app.",
-            Style = (Style)FindResource("Caption"),
-            Margin = new Thickness(0, 0, 0, 10),
-        });
-        var shredOriginals = AddToggle("Offer to remove originals after importing", _settings.OfferShredAfterImport);
-        OverlayBody.Children.Add(new TextBlock
-        {
-            Text = "After a file is safely in the vault, ask whether to overwrite and delete the copy " +
-                   "it came from. Always asks, never automatic. It defeats undelete tools; on an SSD it " +
-                   "cannot guarantee the old bytes are gone from the drive, which is what disk encryption " +
-                   "is for.",
-            Style = (Style)FindResource("Caption"),
-            TextWrapping = TextWrapping.Wrap,
-            Margin = new Thickness(0, 0, 0, 10),
-        });
-        var lockBox = AddLabeledInput("Auto-lock after (minutes)", _settings.AutoLockMinutes.ToString(), topMargin: 14);
-        var clipBox = AddLabeledInput("Clear clipboard after (seconds)", _settings.ClipboardClearSeconds.ToString(), topMargin: 14);
-
-        AddUpdateSettings();
-        AddAboutSettings();
-
-        OverlayBody.Children.Add(new Border { Height = 1, Background = (Brush)FindResource("Stroke"), Margin = new Thickness(0, 18, 0, 14) });
-        OverlayBody.Children.Add(new TextBlock { Text = "Backup", Style = (Style)FindResource("H2") });
-        OverlayBody.Children.Add(new TextBlock
-        {
-            Text = "Export creates an encrypted ZIP you can store on USB or cloud. Import adds new items only. Nothing is overwritten.",
-            Style = (Style)FindResource("Caption"),
-            Margin = new Thickness(0, 4, 0, 10),
-            TextWrapping = TextWrapping.Wrap,
-        });
-
-        var profile = _profiles.ActiveProfile;
-        DateTime? lastBackup = ResolveLastBackupUtc();
-        string backupStatus;
-        Brush backupBrush = (Brush)FindResource("Muted");
-        if (lastBackup is null)
-        {
-            backupStatus = "No backup recorded yet. A backup protects against drive failure, not a forgotten password.";
-            backupBrush = (Brush)FindResource("Warning");
-        }
-        else
-        {
-            var ago = DateTime.UtcNow - lastBackup.Value;
-            backupStatus = ago.TotalDays >= 1
-                ? $"Last backup: {lastBackup.Value.ToLocalTime():g} ({(int)ago.TotalDays} day{((int)ago.TotalDays == 1 ? "" : "s")} ago)"
-                : $"Last backup: {lastBackup.Value.ToLocalTime():g} (today)";
-            if (ago.TotalDays > 30)
-                backupBrush = (Brush)FindResource("Warning");
-        }
-
-        OverlayBody.Children.Add(new TextBlock
-        {
-            Text = backupStatus,
-            Style = (Style)FindResource("Body"),
-            Foreground = backupBrush,
-            Margin = new Thickness(0, 0, 0, 10),
-            TextWrapping = TextWrapping.Wrap,
-        });
-
-        var exportBtn = new Button
-        {
-            Style = (Style)FindResource("GhostButton"),
-            Content = "Export backup...",
-            Height = 40,
-            HorizontalAlignment = HorizontalAlignment.Left,
-            MinWidth = 160,
-            Margin = new Thickness(0, 0, 0, 8),
-        };
-        exportBtn.Click += (_, _) => ExportBackup();
-        OverlayBody.Children.Add(exportBtn);
-
-        var importBtn = new Button
-        {
-            Style = (Style)FindResource("GhostButton"),
-            Content = "Import backup...",
-            Height = 40,
-            HorizontalAlignment = HorizontalAlignment.Left,
-            MinWidth = 160,
-            Margin = new Thickness(0, 0, 0, 4),
-        };
-        importBtn.Click += (_, _) => BeginImportBackup();
-        OverlayBody.Children.Add(importBtn);
-
-        OverlayBody.Children.Add(new Border { Height = 1, Background = (Brush)FindResource("Stroke"), Margin = new Thickness(0, 18, 0, 14) });
-        OverlayBody.Children.Add(new TextBlock { Text = "Profiles", Style = (Style)FindResource("H2") });
-        string profileName = _profiles.ActiveProfile?.Name ?? "Default";
-        OverlayBody.Children.Add(new TextBlock
-        {
-            Text = $"Current profile: {profileName}",
-            Style = (Style)FindResource("Body"),
-            Margin = new Thickness(0, 4, 0, 10),
-        });
-        OverlayBody.Children.Add(new TextBlock
-        {
-            Text = "Each profile is a separate vault with its own master password.",
-            Style = (Style)FindResource("Caption"),
-            Margin = new Thickness(0, 0, 0, 10),
-        });
-        var renameVaultBtn = new Button
-        {
-            Style = (Style)FindResource("GhostButton"),
-            Content = "Rename vault...",
-            Height = 40,
-            HorizontalAlignment = HorizontalAlignment.Left,
-            MinWidth = 160,
-            Margin = new Thickness(0, 0, 0, 8),
-        };
-        renameVaultBtn.Click += (_, _) => BeginRenameVault();
-        OverlayBody.Children.Add(renameVaultBtn);
-        var switchProfileBtn = new Button
-        {
-            Style = (Style)FindResource("GhostButton"),
-            Content = "Switch profile...",
-            Height = 40,
-            HorizontalAlignment = HorizontalAlignment.Left,
-            MinWidth = 160,
-        };
-        switchProfileBtn.Click += (_, _) =>
-        {
-            CloseOverlay();
-            _onLock();
-            _onSwitchProfile();
-        };
-        OverlayBody.Children.Add(switchProfileBtn);
-
-        AddVaultLocationSettings();
-
-        OverlayBody.Children.Add(new Border { Height = 1, Background = (Brush)FindResource("Stroke"), Margin = new Thickness(0, 18, 0, 14) });
-        OverlayBody.Children.Add(new TextBlock { Text = "Master password", Style = (Style)FindResource("H2") });
-        OverlayBody.Children.Add(new TextBlock { Text = "Changing it re-wraps the same data. Your entries stay intact.", Style = (Style)FindResource("Caption"), Margin = new Thickness(0, 4, 0, 8) });
-        var newPw = AddLabeledPassword("New master password");
-        var confirmPw = AddLabeledPassword("Confirm new password", topMargin: 10);
-
-        OverlayBody.Children.Add(new Border { Height = 1, Background = (Brush)FindResource("Stroke"), Margin = new Thickness(0, 18, 0, 14) });
-        OverlayBody.Children.Add(new TextBlock { Text = "Vault location", Style = (Style)FindResource("Caption") });
-        OverlayBody.Children.Add(new TextBlock { Text = _vault.VaultDir, Style = (Style)FindResource("Body"), Margin = new Thickness(0, 2, 0, 0), FontSize = 12 });
-
-        _overlaySave = () =>
-        {
-            _settings.ExcludeFromCapture = capture.IsChecked == true;
-            _settings.RunPreflight = preflight.IsChecked == true;
-            _settings.BlurMediaThumbnails = blurMedia.IsChecked == true;
-            _settings.HideNsfwMediaFolders = hideNsfw.IsChecked == true;
-            _settings.LockOnMinimize = lockOnMinimize.IsChecked == true;
-            _settings.OfferShredAfterImport = shredOriginals.IsChecked == true;
-            _updateSettingsCommit?.Invoke();
-            if (int.TryParse(lockBox.Text, out int m) && m >= 1) _settings.AutoLockMinutes = m;
-            if (int.TryParse(clipBox.Text, out int s) && s >= 5) _settings.ClipboardClearSeconds = s;
-            _applySettings();
-
-            using (SecureString newPassword = newPw.SecurePassword)
-            using (SecureString confirmPassword = confirmPw.SecurePassword)
-            {
-                if (newPassword.Length > 0 || confirmPassword.Length > 0)
-                {
-                    if (newPassword.Length < 10) { MessageBox.Show("New password must be at least 10 characters.", "Lockwell"); return; }
-                    if (!SecurePassword.SecureEquals(newPassword, confirmPassword)) { MessageBox.Show("New passwords do not match.", "Lockwell"); return; }
-                    _vault.ChangePassword(newPassword);
-                    MessageBox.Show("Master password changed.", "Lockwell");
-                }
-            }
-            CloseOverlay();
-            RefreshCategories();
-            if (_mediaMode) RefreshMediaGallery();
-            else RefreshEntries();
-        };
-        ShowOverlay();
-    }
-
     private void BeginRenameVault()
     {
         var profile = _profiles.ActiveProfile;
@@ -4217,7 +3635,9 @@ public partial class VaultShellView : UserControl
             {
                 _profiles.RenameProfile(profile, nameBox.Text);
                 CloseOverlay();
-                MessageBox.Show("Vault renamed.", "Lockwell");
+                VaultNameText.Text = profile.Name;
+                ShowToast("Vault renamed.");
+                if (_settingsMode) RenderSettingsSection();
             }
             catch (Exception ex)
             {
@@ -4251,12 +3671,11 @@ public partial class VaultShellView : UserControl
             // The timestamp now lives inside the encrypted vault (set by Export), so it
             // is no longer copied into plaintext settings.json where anyone could read
             // how often this vault gets backed up.
-            RefreshHome();
+            UpdateBackupNudge();
+            if (_settingsMode) RenderSettingsSection();
 
             await FinishProgressAsync("Backup saved.");
-            MessageBox.Show(
-                "Backup saved. The ZIP stays encrypted. Keep it with your master password or recovery key.",
-                "Lockwell");
+            ShowToast("Backup saved. It stays encrypted, and opens with your master password.");
         }
         catch (Exception ex)
         {
@@ -4396,6 +3815,7 @@ public partial class VaultShellView : UserControl
             Anim.ResetMotion(OverlayCard);
             OverlayCard.MaxWidth = OverlayDefaultMaxWidth;
             OverlaySave.Content = "Save"; // dialogs may relabel it; always reset
+            OverlaySave.Visibility = Visibility.Visible;
             _overlaySave = null;
             _folderItemHost = null;
             _folderEditDeleteIds.Clear();
@@ -4436,7 +3856,7 @@ public partial class VaultShellView : UserControl
 
     private TextBox AddLabeledInput(string label, string value, bool multiline = false, double topMargin = 0)
     {
-        OverlayBody.Children.Add(new TextBlock { Text = label, Style = (Style)FindResource("Caption"), Margin = new Thickness(0, topMargin, 0, 6) });
+        FormHost.Children.Add(new TextBlock { Text = label, Style = (Style)FindResource("Caption"), Margin = new Thickness(0, topMargin, 0, 6) });
         var box = new TextBox { Style = (Style)FindResource("InputBox"), Text = value };
         if (multiline)
         {
@@ -4446,7 +3866,7 @@ public partial class VaultShellView : UserControl
             box.VerticalContentAlignment = VerticalAlignment.Top;
             box.Padding = new Thickness(12, 8, 12, 8);
         }
-        OverlayBody.Children.Add(box);
+        FormHost.Children.Add(box);
         return box;
     }
 
@@ -4487,16 +3907,16 @@ public partial class VaultShellView : UserControl
 
     private PasswordBox AddLabeledPassword(string label, double topMargin = 0)
     {
-        OverlayBody.Children.Add(new TextBlock { Text = label, Style = (Style)FindResource("Caption"), Margin = new Thickness(0, topMargin, 0, 6) });
+        FormHost.Children.Add(new TextBlock { Text = label, Style = (Style)FindResource("Caption"), Margin = new Thickness(0, topMargin, 0, 6) });
         var box = new PasswordBox { Style = (Style)FindResource("InputPassword") };
-        OverlayBody.Children.Add(box);
+        FormHost.Children.Add(box);
         return box;
     }
 
     private CheckBox AddToggle(string label, bool isChecked)
     {
         var cb = new CheckBox { Content = label, IsChecked = isChecked, Foreground = (Brush)FindResource("Text"), Margin = new Thickness(0, 6, 0, 4) };
-        OverlayBody.Children.Add(cb);
+        FormHost.Children.Add(cb);
         return cb;
     }
 
@@ -4510,10 +3930,12 @@ public partial class VaultShellView : UserControl
     private void StyleChip(Button b, bool selected)
     {
         b.Style = (Style)FindResource("GhostButton");
-        b.Height = 34;
-        b.MinWidth = 70;
-        b.Padding = new Thickness(14, 0, 14, 0);
-        b.Foreground = selected ? (Brush)FindResource("Accent") : (Brush)FindResource("Muted");
+        b.Height = 30;
+        b.MinWidth = 60;
+        b.Padding = new Thickness(12, 0, 12, 0);
+        b.FontSize = 12;
+        b.BorderBrush = selected ? (Brush)FindResource("Accent") : (Brush)FindResource("Stroke");
+        b.Foreground = selected ? (Brush)FindResource("Text") : (Brush)FindResource("Muted");
     }
 
     // ----------------------------------------------------- helpers
@@ -4671,7 +4093,7 @@ public partial class VaultShellView : UserControl
     private sealed class CategoryRow
     {
         public Category Category { get; }
-        public string Name => Category.Name;
+        public string Name => DisplayName(Category);
         public string Glyph => Category.Glyph;
         public string CountLabel { get; }
 
@@ -4681,6 +4103,9 @@ public partial class VaultShellView : UserControl
         /// control would mean two lists that have to agree about selection.
         /// </summary>
         public bool IsHeader { get; init; }
+
+        /// <summary>Whether clicking this header folds the group under it.</summary>
+        public bool IsFoldable { get; init; }
 
         /// <summary>Whether the group under this header is folded away.</summary>
         public bool IsCollapsed { get; init; }
@@ -4706,13 +4131,15 @@ public partial class VaultShellView : UserControl
         public string Subtitle { get; }
         public string Glyph { get; }
         public Visibility FavoriteVisibility => Folder.IsFavorite ? Visibility.Visible : Visibility.Collapsed;
+        public Visibility SyncedVisibility => Visibility.Collapsed;
+        public string SyncedTooltip => "";
 
         public FolderListRow(MediaFolder folder, Category? category, int fileCount)
         {
             Folder = folder;
             Category = category;
             Glyph = FolderKindIcon(folder.Kind);
-            string section = category?.Name ?? "Media";
+            string section = category is null ? "Files" : DisplayName(category);
             Subtitle = fileCount == 1 ? $"1 file · {section}" : $"{fileCount} files · {section}";
         }
     }
@@ -4738,7 +4165,7 @@ public partial class VaultShellView : UserControl
             Entry = entry;
             Glyph = GlyphForKind(entry.Kind);
             var firstVisible = entry.Fields.FirstOrDefault(f => !f.IsSecret && !string.IsNullOrWhiteSpace(f.Value));
-            Subtitle = firstVisible?.Value ?? KindLabel(entry.Kind);
+            Subtitle = firstVisible?.Value ?? (entry.Kind == EntryKind.Media ? "File" : KindLabel(entry.Kind));
         }
     }
 
@@ -4757,7 +4184,7 @@ public partial class VaultShellView : UserControl
                 Background = (Brush)findResource("Bg2"),
                 BorderBrush = (Brush)findResource("Stroke"),
                 BorderThickness = new Thickness(1),
-                CornerRadius = new CornerRadius(10),
+                CornerRadius = new CornerRadius(8),
                 Padding = new Thickness(10),
                 Margin = new Thickness(0, 0, 0, 8),
             };

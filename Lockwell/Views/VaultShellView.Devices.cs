@@ -44,23 +44,10 @@ public partial class VaultShellView
 
     private void ShowDevices()
     {
-        _homeMode = false;
-        _storageMode = false;
+        HideAllPanels();
         _devicesMode = true;
-        _mediaMode = false;
-        _currentCategory = null;
-        CategoryList.SelectedItem = null;
-
-        HomePanel.Visibility = Visibility.Collapsed;
-        StoragePanel.Visibility = Visibility.Collapsed;
-        ListColumn.Visibility = Visibility.Collapsed;
-        DetailColumn.Visibility = Visibility.Collapsed;
-        MediaPanel.Visibility = Visibility.Collapsed;
-
         RefreshDevices();
-
         DevicesPanel.Visibility = Visibility.Visible;
-        Anim.SlideFadeIn(DevicesPanel, 320, 16);
     }
 
     private void RefreshDevices()
@@ -74,14 +61,8 @@ public partial class VaultShellView
         var devices = Trust.Devices.OrderByDescending(d => d.LastSeenUtc).ToList();
         NoDevicesCard.Visibility = devices.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
 
-        int i = 0;
         foreach (var device in devices)
-        {
-            var row = BuildDeviceRow(device);
-            DeviceRows.Children.Add(row);
-            Anim.SlideFadeIn(row, 260, 10, i * 30);
-            i++;
-        }
+            DeviceRows.Children.Add(BuildDeviceRow(device));
 
         ExpiryToggle.IsChecked = Trust.ExpiryEnabled;
         ExpiryTitle.Text = Trust.ExpiryEnabled
@@ -113,12 +94,9 @@ public partial class VaultShellView
     {
         var host = new Border
         {
-            CornerRadius = new CornerRadius(14),
-            Padding = new Thickness(16, 14, 16, 14),
-            Margin = new Thickness(0, 0, 0, 10),
-            Background = (Brush)FindResource("Bg2"),
-            BorderBrush = (Brush)FindResource("GlassStroke"),
-            BorderThickness = new Thickness(1),
+            Padding = new Thickness(0, 12, 0, 12),
+            BorderBrush = (Brush)FindResource("Stroke"),
+            BorderThickness = new Thickness(0, 1, 0, 0),
         };
 
         var grid = new Grid();
@@ -130,8 +108,8 @@ public partial class VaultShellView
         {
             Text = device.Kind == "phone" ? "" : "",
             FontFamily = (FontFamily)FindResource("IconFont"),
-            FontSize = 20,
-            Foreground = (Brush)FindResource("Accent"),
+            FontSize = 18,
+            Foreground = (Brush)FindResource("Muted"),
             VerticalAlignment = VerticalAlignment.Center,
             Margin = new Thickness(0, 0, 14, 0),
         });
@@ -141,8 +119,7 @@ public partial class VaultShellView
         {
             Text = device.Name,
             Foreground = (Brush)FindResource("Text"),
-            FontSize = 14,
-            FontWeight = FontWeights.SemiBold,
+            FontSize = 13,
         });
 
         string seen = device.DaysSinceSeen switch
@@ -155,8 +132,7 @@ public partial class VaultShellView
         {
             Text = $"{seen}  ·  linked {device.PairedUtc.ToLocalTime():d MMM yyyy}",
             Style = (Style)FindResource("Caption"),
-            FontSize = 11,
-            Margin = new Thickness(0, 3, 0, 0),
+            Margin = new Thickness(0, 2, 0, 0),
         });
 
         // How long this pairing has left, on the row rather than buried in a setting.
@@ -172,7 +148,7 @@ public partial class VaultShellView
         }
         else if (daysLeft <= 0)
         {
-            expiryText = "Expired \u2014 will be removed";
+            expiryText = "Expired, will be removed";
             expiryColour = "Danger";
         }
         else if (daysLeft <= 3)
@@ -214,57 +190,26 @@ public partial class VaultShellView
 
         var send = new Button
         {
-            Style = (Style)FindResource("AccentButton"),
+            Style = (Style)FindResource("GhostButton"),
             Content = "Send items",
-            Height = 32,
-            MinWidth = 96,
-            Padding = new Thickness(12, 0, 12, 0),
-            FontSize = 11,
-            Margin = new Thickness(0, 0, 8, 0),
         };
         send.Click += (_, _) => SendToDevice(device);
-
-        var rename = new Button
-        {
-            Style = (Style)FindResource("GhostButton"),
-            Content = "Rename",
-            Height = 32,
-            MinWidth = 82,
-            Padding = new Thickness(12, 0, 12, 0),
-            FontSize = 11,
-            Margin = new Thickness(0, 0, 8, 0),
-        };
-        rename.Click += (_, _) => RenameDevice(device);
-
         actions.Children.Add(send);
 
-        var unlink = new Button
+        var more = new Button
         {
-            Style = (Style)FindResource("GhostButton"),
-            Content = "Unlink",
-            Height = 32,
-            MinWidth = 78,
-            Padding = new Thickness(12, 0, 12, 0),
-            FontSize = 11,
+            Style = (Style)FindResource("IconButton"),
+            Content = "\uE712",
+            Margin = new Thickness(4, 0, 0, 0),
+            ToolTip = "More",
         };
-        unlink.Click += (_, _) => UnlinkDevice(device);
+        more.Click += (_, _) => OpenMenu(more,
+            MenuEntry("Rename", () => RenameDevice(device)),
+            MenuEntry("Expiry", () => EditDeviceExpiry(device)),
+            new Separator(),
+            MenuEntry("Unlink", () => UnlinkDevice(device)));
+        actions.Children.Add(more);
 
-        var expiry = new Button
-        {
-            Style = (Style)FindResource("GhostButton"),
-            Content = "Expiry",
-            Height = 32,
-            MinWidth = 76,
-            Padding = new Thickness(12, 0, 12, 0),
-            FontSize = 11,
-            Margin = new Thickness(0, 0, 8, 0),
-            ToolTip = "How long this device may go quiet before the link is dropped",
-        };
-        expiry.Click += (_, _) => EditDeviceExpiry(device);
-
-        actions.Children.Add(rename);
-        actions.Children.Add(expiry);
-        actions.Children.Add(unlink);
         Grid.SetColumn(actions, 2);
         grid.Children.Add(actions);
 

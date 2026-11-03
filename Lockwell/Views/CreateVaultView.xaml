@@ -1,17 +1,12 @@
 <UserControl x:Class="Lockwell.Views.CreateVaultView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-    <Grid>
+    <Grid Background="{StaticResource Bg0}">
         <!-- Step 1: create master password -->
         <Border x:Name="FormPanel" Style="{StaticResource HeroCard}" Width="470"
                 VerticalAlignment="Center" HorizontalAlignment="Center" Padding="34">
             <StackPanel>
-                <Border Width="56" Height="56" CornerRadius="16" HorizontalAlignment="Left"
-                        Background="{StaticResource GlassBg}" BorderBrush="{StaticResource GlassStroke}" BorderThickness="1"
-                        Effect="{StaticResource AccentGlowSoft}">
-                    <TextBlock Text="&#xE72E;" FontFamily="{StaticResource IconFont}" FontSize="24"
-                               Foreground="{StaticResource Accent}" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                </Border>
+                <Image Source="/Lockwell;component/Assets/lockwell-icon-source.png" Width="44" Height="44" HorizontalAlignment="Left" RenderOptions.BitmapScalingMode="HighQuality" />
                 <TextBlock Text="Create your vault" Style="{StaticResource PageTitle}" Margin="0,16,0,0" />
                 <TextBlock Style="{StaticResource Caption}" Margin="0,6,0,0"
                            Text="Your master password is the only key. It is never stored. If you lose it and have no recovery key, the data is gone for good." />
@@ -54,7 +49,7 @@
                 <Border Background="{StaticResource Bg0}" CornerRadius="10" Padding="16" Margin="0,18,0,0"
                         BorderThickness="1" BorderBrush="{StaticResource Stroke}">
                     <TextBlock x:Name="RecoveryKeyText" FontFamily="Consolas, monospace" FontSize="15"
-                               Foreground="{StaticResource Accent}" TextWrapping="Wrap" TextAlignment="Center" />
+                               Foreground="{StaticResource Text}" TextWrapping="Wrap" TextAlignment="Center" />
                 </Border>
 
                 <Button x:Name="CopyKeyButton" Style="{StaticResource GhostButton}" Content="Copy to clipboard"

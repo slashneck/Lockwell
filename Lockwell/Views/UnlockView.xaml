@@ -1,25 +1,20 @@
 <UserControl x:Class="Lockwell.Views.UnlockView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-    <Grid>
-        <Border x:Name="Card" Style="{StaticResource HeroCard}" Width="430"
-                VerticalAlignment="Center" HorizontalAlignment="Center" Padding="36"
+    <Grid Background="{StaticResource Bg0}">
+        <Border x:Name="Card" Width="340"
+                VerticalAlignment="Center" HorizontalAlignment="Center"
                 RenderTransformOrigin="0.5,0.5">
             <Border.RenderTransform>
                 <TranslateTransform x:Name="Shake" />
             </Border.RenderTransform>
             <StackPanel>
-                <Border Width="64" Height="64" CornerRadius="18" HorizontalAlignment="Center"
-                        Background="{StaticResource GlassBg}" BorderBrush="{StaticResource GlassStroke}" BorderThickness="1"
-                        Effect="{StaticResource AccentGlowSoft}">
-                    <TextBlock Text="&#xE72E;" FontFamily="{StaticResource IconFont}" FontSize="28"
-                               Foreground="{StaticResource Accent}" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                </Border>
-                <TextBlock Text="Lockwell" Style="{StaticResource Hero}" HorizontalAlignment="Center" Margin="0,16,0,0" />
-                <TextBlock x:Name="ProfileLabel" Style="{StaticResource Caption}" Foreground="{StaticResource Accent}"
+                <Image Source="/Lockwell;component/Assets/lockwell-icon-source.png" Width="44" Height="44" HorizontalAlignment="Center" RenderOptions.BitmapScalingMode="HighQuality" />
+                <TextBlock Text="Lockwell" Style="{StaticResource H1}" HorizontalAlignment="Center" Margin="0,16,0,0" />
+                <TextBlock x:Name="ProfileLabel" Style="{StaticResource Caption}"
                            HorizontalAlignment="Center" Margin="0,2,0,0" Visibility="Collapsed" />
                 <Border x:Name="UnlockRiskBanner" Visibility="Collapsed" Margin="0,14,0,0" Padding="12,10"
-                        CornerRadius="10" Background="#28F59E0B" BorderBrush="{StaticResource Warning}" BorderThickness="1">
+                        CornerRadius="10" Background="{StaticResource WarningSoft}" BorderBrush="{StaticResource Warning}" BorderThickness="1">
                     <StackPanel>
                         <TextBlock Text="Screen sharing may be active" FontSize="12" FontWeight="SemiBold"
                                    Foreground="{StaticResource Warning}" />
@@ -59,9 +54,9 @@
             </StackPanel>
         </Border>
 
-        <Grid x:Name="UnlockRiskGate" Visibility="Collapsed" Background="#D904060B">
+        <Grid x:Name="UnlockRiskGate" Visibility="Collapsed" Background="{StaticResource Scrim}">
             <Border Style="{StaticResource HeroCard}" Width="480" MaxHeight="520" Padding="28"
-                    VerticalAlignment="Center" HorizontalAlignment="Center" Background="#F20C111B">
+                    VerticalAlignment="Center" HorizontalAlignment="Center" Background="{StaticResource Bg1}">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />

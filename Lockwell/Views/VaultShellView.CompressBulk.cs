@@ -176,7 +176,7 @@ public partial class VaultShellView
 
         var warn = new Border
         {
-            CornerRadius = new CornerRadius(10),
+            CornerRadius = new CornerRadius(8),
             Padding = new Thickness(12, 10, 12, 10),
             Margin = new Thickness(0, 14, 0, 0),
             Background = new SolidColorBrush(Color.FromArgb(0x22, 0xF5, 0xC3, 0x5C)),
@@ -287,7 +287,6 @@ public partial class VaultShellView
         }
         finally
         {
-            UpdateStats();
             RefreshCategories();
             if (wasStorage) RefreshStorage();
             else if (wasMedia) RefreshMediaGallery();

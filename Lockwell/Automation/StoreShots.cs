@@ -169,9 +169,17 @@ internal static class StoreShots
         host.Content = shell;
         await Settle(1400);
 
-        shell.AutomationHome();
-        await Settle(900);
+        shell.AutomationAllItems();
+        await Settle(600);
+        shell.AutomationSelectFirstEntry();
+        await Settle(600);
         captures["01-home"] = Capture(window);
+
+        shell.AutomationSearch("mail");
+        await Settle(600);
+        captures["14-search"] = Capture(window);
+        shell.AutomationCloseSearch();
+        await Settle(200);
 
         shell.AutomationSection("Media vault");
         await Settle(700);
@@ -184,11 +192,32 @@ internal static class StoreShots
         await Settle(1600); // thumbnails decode off-thread
         captures["03-media"] = Capture(window);
 
+        shell.AutomationSelectFirstFiles();
+        await Settle(300);
+        captures["15-selection"] = Capture(window);
+        shell.AutomationClearSelection();
+
+        shell.AutomationFilesAsList(true);
+        await Settle(900);
+        captures["16-files-list"] = Capture(window);
+        shell.AutomationFilesAsList(false);
+        await Settle(600);
+
         shell.AutomationOpenFirstMediaItem();
         await Settle(1500);
         captures["04-viewer"] = Capture(window);
         shell.AutomationCloseViewer();
         await Settle(700);
+
+        // Set only by a local playback check. Nothing here runs in a normal capture.
+        string? playback = Environment.GetEnvironmentVariable("LOCKWELL_PLAYBACK_TEST");
+        if (!string.IsNullOrEmpty(playback))
+        {
+            Console.WriteLine("[playback] " + await shell.AutomationPlay(playback));
+            captures["19-playback"] = Capture(window);
+            shell.AutomationCloseViewer();
+            await Settle(500);
+        }
 
         shell.AutomationStorage();
         await Settle(900);
@@ -221,10 +250,14 @@ internal static class StoreShots
         captures["13-notes"] = Capture(window);
 
         shell.AutomationSettings();
-        await Settle(1000);
+        await Settle(700);
         captures["08-settings"] = Capture(window);
-        shell.AutomationCloseOverlay();
-        await Settle(600);
+        shell.AutomationSettingsSecurity();
+        await Settle(500);
+        captures["17-settings-security"] = Capture(window);
+        shell.AutomationSettingsBackup();
+        await Settle(500);
+        captures["18-settings-backup"] = Capture(window);
 
         // Devices, with a few stand-ins so the screen is shown carrying something rather
         // than empty. They are written to the throwaway trust store beside the demo vault.
@@ -245,6 +278,12 @@ internal static class StoreShots
         shell.AutomationSection("Gaming"); // deliberately never populated
         await Settle(800);
         captures["09-empty"] = Capture(window);
+
+        // Set only by a local check of the interface. Nothing here runs in a normal capture.
+        if (Environment.GetEnvironmentVariable("LOCKWELL_UI_PASS") == "1")
+        {
+            await RunInterfacePass(shell, window, host, profiles, captures, windowDir);
+        }
 
         /* --------------------------------------------------------- compose */
         foreach (var (id, shot) in captures)
@@ -571,13 +610,116 @@ internal static class StoreShots
                 break;
 
             default:
-                shell.AutomationHome();
+                shell.AutomationAllItems();
                 break;
         }
 
         await Settle(1400);
         Console.WriteLine("[preview] ready");
         Console.Out.Flush();
+    }
+
+    /// <summary>
+    /// Everything a capture cannot reach by navigating: menus, dialogs, first-run screens. These
+    /// are templates that only fail when they are actually shown, so they get shown.
+    /// </summary>
+    private static async Task RunInterfacePass(
+        VaultShellView shell, Window window, ContentControl host, ProfileManager profiles,
+        Dictionary<string, BitmapSource> captures, string windowDir)
+    {
+        static BitmapSource RenderElement(FrameworkElement element)
+        {
+            var bitmap = new RenderTargetBitmap(
+                Math.Max(1, (int)element.ActualWidth), Math.Max(1, (int)element.ActualHeight),
+                96, 96, PixelFormats.Pbgra32);
+            bitmap.Render(element);
+            return bitmap;
+        }
+
+        shell.AutomationSection("Media vault");
+        await Settle(600);
+
+        var folderMenu = shell.AutomationOpenFolderMenu();
+        await Settle(400);
+        if (folderMenu is not null)
+        {
+            Save(Path.Combine(windowDir, "20-menu-folder.png"), RenderElement(folderMenu));
+            Console.WriteLine($"[ui] folder menu opened, {folderMenu.Items.Count} rows");
+            folderMenu.IsOpen = false;
+        }
+
+        var fileMenu = shell.AutomationOpenFileMenu();
+        await Settle(400);
+        if (fileMenu is not null)
+        {
+            Console.WriteLine($"[ui] file menu opened, {fileMenu.Items.Count} rows");
+            fileMenu.IsOpen = false;
+        }
+
+        shell.AutomationSelectFirstFiles();
+        shell.AutomationOpenMoveDialog();
+        await Settle(600);
+        captures["21-move"] = Capture(window);
+        shell.AutomationCloseOverlay();
+        shell.AutomationClearSelection();
+        await Settle(400);
+
+        shell.AutomationNewItem();
+        await Settle(600);
+        captures["22-new-item"] = Capture(window);
+        shell.AutomationCloseOverlay();
+        await Settle(400);
+
+        shell.AutomationToast("Password copied. Clears in 30 seconds.");
+        await Settle(200);
+        captures["23-toast"] = Capture(window);
+
+        // The themed dialog blocks, as the stock one did, so something has to answer it.
+        DialogShot(windowDir, "24-dialog-delete.png", "Cancel");
+        bool confirmed = Lockwell.MessageBox.Confirm("Delete \"Trip photos\"?",
+            "8 files inside will be permanently removed from the vault. This cannot be undone.",
+            "Delete", danger: true);
+        Console.WriteLine($"[ui] confirm dialog answered by Esc: {confirmed}");
+
+        DialogShot(windowDir, "25-dialog-plain.png", "OK");
+        var plain = Lockwell.MessageBox.Show("Backup saved.", "Lockwell");
+        Console.WriteLine($"[ui] plain dialog returned {plain}");
+
+        string scratch = Path.Combine(Path.GetTempPath(), "lockwell-ui-" + Guid.NewGuid().ToString("N"));
+        host.Content = new CreateVaultView(new VaultManager(scratch), () => { });
+        await Settle(500);
+        captures["26-create"] = Capture(window);
+
+        host.Content = new ProfileGateView(profiles, _ => { });
+        await Settle(600);
+        captures["27-gate"] = Capture(window);
+
+        host.Content = new PreflightView(new PreflightScanner(), () => { });
+        await Settle(900);
+        captures["28-preflight"] = Capture(window);
+
+        host.Content = shell;
+        await Settle(400);
+    }
+
+    /// <summary>Capture the next dialog to open, then close it with Escape's result.</summary>
+    private static void DialogShot(string windowDir, string name, string note)
+    {
+        var timer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
+        timer.Tick += (_, _) =>
+        {
+            timer.Stop();
+            var dialog = Application.Current.Windows.OfType<Window>()
+                .FirstOrDefault(w => w.Owner is not null || w.SizeToContent == SizeToContent.Height);
+            if (dialog?.Content is not FrameworkElement root) return;
+
+            var bitmap = new RenderTargetBitmap(
+                Math.Max(1, (int)root.ActualWidth), Math.Max(1, (int)root.ActualHeight), 96, 96, PixelFormats.Pbgra32);
+            bitmap.Render(root);
+            Save(Path.Combine(windowDir, name), bitmap);
+            dialog.Close();
+        };
+        timer.Start();
     }
 
     private static async Task Settle(int ms)

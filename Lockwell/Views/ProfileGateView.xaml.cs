@@ -106,6 +106,7 @@ public partial class ProfileGateView : UserControl
 
 
         DeleteProfileButton.Visibility = rows.Count > 1 ? Visibility.Visible : Visibility.Collapsed;
+        DeleteProfileSeparator.Visibility = DeleteProfileButton.Visibility;
 
     }
 

@@ -54,7 +54,7 @@ public partial class VaultShellView
     private bool _storageByType;
 
     /// <summary>
-    /// True while the storage breakdown is on screen. Like <c>_homeMode</c>, this view
+    /// True while the storage breakdown is on screen. Like <c>_settingsMode</c>, this view
     /// has no sidebar selection, so refreshes must not auto-select a section.
     /// </summary>
     private bool _storageMode;
@@ -130,8 +130,6 @@ public partial class VaultShellView
         _ => null,
     };
 
-    private void HomeStorage_Click(object sender, System.Windows.Input.MouseButtonEventArgs e) => ShowStorage();
-
     /// <summary>
     /// Redraw whichever view is currently on screen. Call this after changing data so
     /// an action never navigates the user somewhere they did not ask to go.
@@ -140,7 +138,7 @@ public partial class VaultShellView
     {
         if (_storageMode) RefreshStorage();
         else if (_devicesMode) RefreshDevices();
-        else if (_homeMode) RefreshHome();
+        else if (_settingsMode) RenderSettingsSection();
         else if (_mediaMode) RefreshMediaGallery();
         else RefreshEntries();
     }
@@ -153,31 +151,19 @@ public partial class VaultShellView
             RefreshStorage();
             return;
         }
-        ShowHome();
+        ShowSettings(SettingsSection.Backup);
     }
 
     private void ShowStorage()
     {
-        _homeMode = false;
+        HideAllPanels();
         _storageMode = true;
-        _devicesMode = false;
-        _mediaMode = false;
-        _currentCategory = null;
-        CategoryList.SelectedItem = null;
-        DevicesPanel.Visibility = Visibility.Collapsed;
-
-        HomePanel.Visibility = Visibility.Collapsed;
-        ListColumn.Visibility = Visibility.Collapsed;
-        DetailColumn.Visibility = Visibility.Collapsed;
-        MediaPanel.Visibility = Visibility.Collapsed;
 
         _storagePath.Clear();
         _storagePath.Add(new StorageCrumb(StorageLevel.Root, null, "Whole vault"));
 
         RefreshStorage();
-
         StoragePanel.Visibility = Visibility.Visible;
-        Anim.SlideFadeIn(StoragePanel, 320, 16);
     }
 
     private void RefreshStorage()
@@ -355,7 +341,7 @@ public partial class VaultShellView
 
         var host = new Border
         {
-            CornerRadius = new CornerRadius(12),
+            CornerRadius = new CornerRadius(8),
             Padding = new Thickness(14, 11, 14, 11),
             Margin = new Thickness(0, 0, 0, 8),
             Background = (Brush)FindResource("Bg2"),

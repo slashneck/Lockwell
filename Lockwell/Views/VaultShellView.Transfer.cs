@@ -257,7 +257,6 @@ public partial class VaultShellView
                 _vault.Save();
                 await Dispatcher.InvokeAsync(() =>
                 {
-                    UpdateStats();
                     RefreshCategories();
                 });
             }
@@ -592,7 +591,7 @@ public partial class VaultShellView
             Width = 132,
             Height = 132,
             Margin = new Thickness(0, 0, 10, 10),
-            CornerRadius = new CornerRadius(12),
+            CornerRadius = new CornerRadius(8),
             Background = (Brush)FindResource("Bg2"),
             BorderBrush = (Brush)FindResource(allPicked ? "Accent" : "GlassStroke"),
             BorderThickness = new Thickness(allPicked ? 2 : 1),
@@ -667,7 +666,7 @@ public partial class VaultShellView
             Width = 132,
             Height = 132,
             Margin = new Thickness(0, 0, 10, 10),
-            CornerRadius = new CornerRadius(12),
+            CornerRadius = new CornerRadius(8),
             Background = (Brush)FindResource("Bg1"),
             BorderBrush = (Brush)FindResource(picked ? "Accent" : "GlassStroke"),
             BorderThickness = new Thickness(picked ? 2 : 1),
@@ -718,7 +717,7 @@ public partial class VaultShellView
             Margin = new Thickness(0, 6, 6, 0),
             Width = 22,
             Height = 22,
-            CornerRadius = new CornerRadius(11),
+            CornerRadius = new CornerRadius(8),
             Background = (Brush)FindResource("Accent"),
             Visibility = picked ? Visibility.Visible : Visibility.Collapsed,
             Child = new TextBlock
@@ -849,7 +848,7 @@ public partial class VaultShellView
         {
             var card = new Border
             {
-                CornerRadius = new CornerRadius(12),
+                CornerRadius = new CornerRadius(8),
                 Padding = new Thickness(16, 14, 16, 14),
                 Margin = new Thickness(0, 16, 0, 0),
                 Background = (Brush)FindResource("Bg2"),

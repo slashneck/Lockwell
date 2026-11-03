@@ -28,7 +28,35 @@ namespace Lockwell.Views;
 /// </summary>
 public partial class VaultShellView
 {
-    internal void AutomationHome() => ShowHome();
+    internal void AutomationAllItems() => CategoryList.SelectedIndex = 0;
+
+    internal void AutomationSearch(string query)
+    {
+        OpenSearch();
+        SearchInput.Text = query;
+    }
+
+    internal void AutomationCloseSearch() => CloseSearch();
+
+    internal void AutomationSettingsBackup() => ShowSettings(SettingsSection.Backup);
+
+    internal void AutomationSettingsSecurity() => ShowSettings(SettingsSection.Security);
+
+    internal void AutomationFilesAsList(bool list)
+    {
+        _settings.FilesListView = list;
+        RefreshMediaGallery();
+    }
+
+    internal void AutomationSelectFirstFiles()
+    {
+        foreach (var tile in MediaGrid.Children.OfType<System.Windows.Controls.Border>().Take(3))
+            if (tile.Tag is VaultEntry entry) _selectedEntryIds.Add(entry.Id);
+        RefreshSelectionUi();
+    }
+
+    internal void AutomationClearSelection() => ClearSelection();
+
 
     internal void AutomationStorage() => ShowStorage();
 
@@ -103,6 +131,66 @@ public partial class VaultShellView
             .FirstOrDefault(e => e.Attachments.Count > 0);
         if (entry is null) return;
         OpenMediaItem(entry, entry.Attachments[0]);
+    }
+
+    /// <summary>
+    /// Open a real file through the path a click takes and report what the player made of it.
+    /// </summary>
+    internal async Task<string> AutomationPlay(string path)
+    {
+        var att = _vault.AddAttachment(path);
+        var entry = new VaultEntry { Title = "Playback test", Attachments = { att } };
+        _vault.Data.Entries.Add(entry);
+        _currentEntry = entry;
+
+        OpenAttachment(att);
+        for (int i = 0; i < 60 && !ViewerMedia.NaturalDuration.HasTimeSpan; i++)
+            await Task.Delay(250);
+
+        string report = $"visible={ImageViewer.Visibility} opened={ViewerMedia.NaturalDuration.HasTimeSpan} "
+                        + $"duration={(ViewerMedia.NaturalDuration.HasTimeSpan ? ViewerMedia.NaturalDuration.TimeSpan : TimeSpan.Zero)} "
+                        + $"hasVideo={ViewerMedia.HasVideo} hasAudio={ViewerMedia.HasAudio} "
+                        + $"volume={ViewerMedia.Volume} muted={ViewerMedia.IsMuted}";
+
+        await Task.Delay(1500);
+        report += $" positionAfter1500ms={ViewerMedia.Position}";
+        return report;
+    }
+
+    /// <summary>The menus a tile offers, opened for real and handed back for capturing.</summary>
+    internal System.Windows.Controls.ContextMenu? AutomationOpenFolderMenu()
+    {
+        var tile = MediaFoldersGrid.Children.OfType<System.Windows.Controls.Border>().FirstOrDefault();
+        if (tile?.Tag is not MediaFolder folder) return null;
+        ShowFolderMenu(tile, folder);
+        return tile.ContextMenu ?? _lastMenu;
+    }
+
+    internal System.Windows.Controls.ContextMenu? AutomationOpenFileMenu()
+    {
+        var tile = MediaGrid.Children.OfType<System.Windows.Controls.Border>().FirstOrDefault();
+        if (tile?.Tag is not VaultEntry entry) return null;
+        ShowFileMenu(tile, entry, entry.Attachments[0]);
+        return _lastMenu;
+    }
+
+    internal void AutomationOpenMoveDialog() => SelectionMove_Click(this, new RoutedEventArgs());
+
+    internal void AutomationNewItem() => OpenEntryEditor(null);
+
+    internal void AutomationToast(string text) => ShowToast(text);
+
+    internal void AutomationShowEntryWithFiles(string title)
+    {
+        var entry = _vault.Data.Entries.FirstOrDefault(e => e.Title == title);
+        if (entry is null) return;
+        GoToEntry(entry);
+    }
+
+    internal void AutomationAttachDemoFiles(string title, params string[] paths)
+    {
+        var entry = _vault.Data.Entries.First(e => e.Title == title);
+        foreach (string path in paths) entry.Attachments.Add(_vault.AddAttachment(path));
     }
 
     internal void AutomationCloseViewer() => CloseViewer_Click(this, new RoutedEventArgs());

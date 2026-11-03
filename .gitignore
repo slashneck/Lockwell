@@ -34,6 +34,11 @@ vault.lwv
 attachments/
 settings.json
 
+# ...except the invented test vault that proves old vaults still open. Its data and its
+# password are made up and are written in Lockwell.Tests/CompatibilityChecks.cs.
+!Lockwell.Tests/Fixtures/vault-1.2.0/
+!Lockwell.Tests/Fixtures/vault-1.2.0/**
+
 # Internal working notes. These carry local paths and machine details.
 docs/HANDOFF-*.md
 docs/CONTINUE-PROMPT.txt

@@ -87,7 +87,7 @@ public partial class VaultShellView
 
         var backupNote = new Border
         {
-            CornerRadius = new CornerRadius(10),
+            CornerRadius = new CornerRadius(8),
             Padding = new Thickness(12, 10, 12, 10),
             Margin = new Thickness(0, 6, 0, 4),
             Background = new SolidColorBrush(Color.FromArgb(stale ? (byte)0x22 : (byte)0x14,
@@ -379,7 +379,7 @@ public partial class VaultShellView
         bool good = result.IsWorthwhile;
         var card = new Border
         {
-            CornerRadius = new CornerRadius(10),
+            CornerRadius = new CornerRadius(8),
             Padding = new Thickness(14, 12, 14, 12),
             Margin = new Thickness(0, 0, 0, 10),
             Background = (Brush)FindResource("Bg2"),
@@ -491,7 +491,6 @@ public partial class VaultShellView
             _vault.Save();
             await FinishProgressAsync($"Saved {FormatBytes(result.OriginalBytes - result.NewBytes)}.");
 
-            UpdateStats();
             RefreshCategories();
 
             if (wasStorage) RefreshStorage();

@@ -4,6 +4,38 @@ All notable changes to Lockwell. Newest first.
 
 ---
 
+## 1.5.0 - 2026-11-03
+
+### A new interface
+
+The whole desktop app was rebuilt to be quieter and faster to use. Nothing about the vault
+format changed, and every feature is still here. A vault made by 1.2.0 is now part of the test
+suite, and has to open with everything in it before a build passes.
+
+- **Search everything with Ctrl K.** Items, files, folders, sections and commands, from one box.
+  Enter opens, Ctrl Enter copies the password. Secret fields and notes are never searched, and
+  neither is anything inside a hidden NSFW folder.
+- **No more Home screen.** The app opens on your items.
+- **Click a field to copy it.** A short message says how long until the clipboard clears.
+- **Files are one place.** Any kind of file can go in, not just media, so a project RAR can sit
+  next to its video. Grid or list. Select several with Ctrl-click, then move, export or delete them
+  together. Right-click or the small menu button has the rest.
+- **Files on an item open where they are.** Click a video and it plays. File names stay hidden
+  until the pointer is on them.
+- **Settings is a page.** Grouped into General, Security, Backup and storage, Updates and About,
+  and changes apply as you make them.
+- **Dialogs match the app.** The stock white Windows boxes are gone, delete buttons say Delete, and
+  Enter on a destructive prompt picks the safe answer.
+- **The viewer gets out of the way.** Controls fade when the mouse rests.
+- **Shortcuts.** Ctrl K search, Ctrl N new, Ctrl F filter, Ctrl L lock, Ctrl comma settings, and
+  Ctrl A, Delete and Esc for selections in Files.
+- **A backup reminder only when one is overdue**, instead of a status always on screen.
+
+### Fixed
+
+- **An item holding two videos played the first one whichever you clicked.**
+- **Searching in Files could list files from inside a hidden NSFW folder.**
+
 ## 1.4.1 - 2026-11-03
 
 ### Corrections

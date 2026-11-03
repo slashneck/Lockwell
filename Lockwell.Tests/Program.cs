@@ -42,6 +42,7 @@ EffectChecks.Run();
 UpdateChecks.Run();
 RelocationChecks.Run();
 ExportChecks.Run();
+CompatibilityChecks.Run();
 
 Console.WriteLine();
 if (Check.Failures == 0)
