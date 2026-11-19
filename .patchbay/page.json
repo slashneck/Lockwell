@@ -1,0 +1,10 @@
+{
+  "name": "Lockwell",
+  "pitch": "Local-only encrypted vault for logins, notes, keys and media.",
+  "category": "security",
+  "download": "installer",
+  "icon": "icon.png",
+  "thumbnail": "thumbnail.png",
+  "screenshots": ["1-vault.png", "2-password.png", "3-photos.png", "4-logins.png", "5-autolock.png"],
+  "video": "video.mp4"
+}
